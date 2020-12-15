@@ -1,0 +1,32 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>netcoreapp3.1</TargetFramework>
+    
+    <NuspecFile>Pretune.nuspec</NuspecFile>
+    <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
+    <PackageOutputPath>..\Packages</PackageOutputPath>
+    <Authors>IOKLO</Authors>
+    <Company>N/A</Company>
+    <DevelopmentDependency>true</DevelopmentDependency>
+    <GenerateNuspecDependsOn>Publish</GenerateNuspecDependsOn>
+    
+    
+    <!-- dll 위치를 lib대신 build로 옮기게 해준다 -->    
+  </PropertyGroup> 
+  
+  <Target Name="SetNuspecProperties" AfterTargets="Publish">
+    <PropertyGroup>
+      <NuspecProperties>publishDir=$(PublishDir);projectdir=$(MSBuildProjectDirectory)\</NuspecProperties>
+    </PropertyGroup>
+  </Target>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.CodeAnalysis.CSharp" Version="3.8.0" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Folder Include="Properties\" />
+  </ItemGroup>  
+</Project>

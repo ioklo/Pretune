@@ -1,0 +1,45 @@
+﻿<Project ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+
+  <PropertyGroup>
+    <PretuneAssemblyPath>$(MSBuildThisFileDirectory)\..\tools\Pretune.dll</PretuneAssemblyPath>
+    <PretuneGeneratedPath>Generated</PretuneGeneratedPath>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PretuneItem Include="@(Compile)" Exclude="$(PretuneGeneratedPath)\**\*.cs"></PretuneItem>
+  </ItemGroup>
+  
+  <!--<Target Name="ClearPreturn" BeforeTargets="Pretune">
+    --><!-- a.cs / a.generated.cs --><!--
+    <Delete Condition="Exists('%(Compile.filename)') AND Exists('%(Compile.filename)')"
+  </Target>-->
+
+  <Target Name="Pretune2" BeforeTargets="BeforeCompile">
+    <Message Importance="high" Text="PretuneAssemblyPath: $(PretuneAssemblyPath)" />
+    <Message Importance="high" Text="MSBuildBinPath: $(MSBuildBinPath)" />
+    <Message Importance="high" Text="MSBuildRuntimeType: $(MSBuildRuntimeType)" />
+    <Message Importance="high" Text="MSBuildProjectDirectory: $(MSBuildProjectDirectory)" />
+  </Target>
+
+  <Target Name="Pretune" BeforeTargets="BeforeCompile"          
+          Inputs="@(PretuneItem)"
+          Outputs="@(PretuneItem->'$(PretuneGeneratedPath)\%(Identity)')" Condition="'$(DesignTimeBuild)'!='true'">
+
+    <PropertyGroup>
+      <PretuneResponseFile>$(IntermediateOutputPath)\Pretune.rsp</PretuneResponseFile>
+      <PretuneOutputFile>$(IntermediateOutputPath)\Pretune.output</PretuneOutputFile>
+    </PropertyGroup>
+
+    <MakeDir Directories="$(IntermediateOutputPath)" />
+    <WriteLinesToFile Overwrite="true" File="$(PretuneResponseFile)" Lines="@(PretuneItem)" />
+    <Exec Command="dotnet &quot;$(PretuneAssemblyPath)&quot; @$(PretuneResponseFile)"/>
+    <ReadLinesFromFile File="$(PretuneOutputFile)">
+      <Output TaskParameter="Lines" ItemName="PretuneGeneratedItem"/>
+    </ReadLinesFromFile>
+
+    <ItemGroup>
+      <Compile Include="@(PretuneGeneratedItem)" />
+    </ItemGroup>
+    
+  </Target>
+</Project>

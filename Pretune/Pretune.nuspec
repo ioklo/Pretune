@@ -1,0 +1,14 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<package xmlns="http://schemas.microsoft.com/packaging/2012/06/nuspec.xsd">
+  <metadata>
+    <id>Pretune</id>
+    <version>1.0.0</version>
+    <authors>IOKLO</authors>
+    <description>Preprocess C# files and generate boilerplates before compiling.</description>
+  </metadata>
+  <files>
+    <file src="$projectdir$packaging\build\*.*" target="build" />
+    <file src="$projectdir$packaging\lib\*" target="lib" />
+    <file src="$publishdir$**\*" target="tools/" />
+  </files>
+</package>

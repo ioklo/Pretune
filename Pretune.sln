@@ -1,0 +1,34 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio Version 16
+VisualStudioVersion = 16.0.30804.86
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Pretune", "Pretune\Pretune.csproj", "{46EB4BBF-5E96-42F1-A34A-BA1FC89F0302}"
+EndProject
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Sample", "Sample\Sample.csproj", "{A792E718-1DA3-44C1-A6FE-22743FEFFAF9}"
+	ProjectSection(ProjectDependencies) = postProject
+		{46EB4BBF-5E96-42F1-A34A-BA1FC89F0302} = {46EB4BBF-5E96-42F1-A34A-BA1FC89F0302}
+	EndProjectSection
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{46EB4BBF-5E96-42F1-A34A-BA1FC89F0302}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{46EB4BBF-5E96-42F1-A34A-BA1FC89F0302}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{46EB4BBF-5E96-42F1-A34A-BA1FC89F0302}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{46EB4BBF-5E96-42F1-A34A-BA1FC89F0302}.Release|Any CPU.Build.0 = Release|Any CPU
+		{A792E718-1DA3-44C1-A6FE-22743FEFFAF9}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{A792E718-1DA3-44C1-A6FE-22743FEFFAF9}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{A792E718-1DA3-44C1-A6FE-22743FEFFAF9}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{A792E718-1DA3-44C1-A6FE-22743FEFFAF9}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(ExtensibilityGlobals) = postSolution
+		SolutionGuid = {8D41EAFB-B115-4217-B743-3640E613169A}
+	EndGlobalSection
+EndGlobal
