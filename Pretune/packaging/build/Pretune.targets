@@ -14,12 +14,12 @@
     <Delete Condition="Exists('%(Compile.filename)') AND Exists('%(Compile.filename)')"
   </Target>-->
 
-  <Target Name="Pretune2" BeforeTargets="BeforeCompile">
+  <!--<Target Name="Pretune2" BeforeTargets="BeforeCompile">
     <Message Importance="high" Text="PretuneAssemblyPath: $(PretuneAssemblyPath)" />
     <Message Importance="high" Text="MSBuildBinPath: $(MSBuildBinPath)" />
     <Message Importance="high" Text="MSBuildRuntimeType: $(MSBuildRuntimeType)" />
     <Message Importance="high" Text="MSBuildProjectDirectory: $(MSBuildProjectDirectory)" />
-  </Target>
+  </Target>-->
 
   <Target Name="Pretune" BeforeTargets="BeforeCompile"          
           Inputs="@(PretuneItem)"
@@ -27,17 +27,20 @@
 
     <PropertyGroup>
       <PretuneResponseFile>$(IntermediateOutputPath)\Pretune.rsp</PretuneResponseFile>
-      <PretuneOutputFile>$(IntermediateOutputPath)\Pretune.output</PretuneOutputFile>
+      <PretuneOutputsFile>$(IntermediateOutputPath)Pretune.outputs</PretuneOutputsFile>
     </PropertyGroup>
 
     <MakeDir Directories="$(IntermediateOutputPath)" />
-    <WriteLinesToFile Overwrite="true" File="$(PretuneResponseFile)" Lines="@(PretuneItem)" />
+    <WriteLinesToFile Overwrite="true" File="$(PretuneResponseFile)" Lines="$(PretuneGeneratedPath)" />
+    <WriteLinesToFile File="$(PretuneResponseFile)" Lines="$(PretuneOutputsFile)" />
+    <WriteLinesToFile File="$(PretuneResponseFile)" Lines="@(PretuneItem)" />
     <Exec Command="dotnet &quot;$(PretuneAssemblyPath)&quot; @$(PretuneResponseFile)"/>
-    <ReadLinesFromFile File="$(PretuneOutputFile)">
+    <ReadLinesFromFile File="$(PretuneOutputsFile)">
       <Output TaskParameter="Lines" ItemName="PretuneGeneratedItem"/>
     </ReadLinesFromFile>
 
     <ItemGroup>
+      <!--중복이 발생할 수 있지만, KeepDuplicates만 꺼져있으면 안심 -->
       <Compile Include="@(PretuneGeneratedItem)" />
     </ItemGroup>
     

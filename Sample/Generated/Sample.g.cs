@@ -7,10 +7,10 @@ namespace CodeGenerator
 {
     public partial class Sample<T>
     {
-        public Sample(int @x, T @param)
+        public Sample(int @x, T @param2)
         {
             this.X = @x;
-            this.Param = @param;
+            this.Param2 = @param2;
         }
     }
 

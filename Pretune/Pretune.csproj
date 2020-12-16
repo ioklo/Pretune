@@ -11,10 +11,14 @@
     <Company>N/A</Company>
     <DevelopmentDependency>true</DevelopmentDependency>
     <GenerateNuspecDependsOn>Publish</GenerateNuspecDependsOn>
-    
-    
-    <!-- dll 위치를 lib대신 build로 옮기게 해준다 -->    
-  </PropertyGroup> 
+    <Nullable>enable</Nullable>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <AssemblyAttribute Include="System.Runtime.CompilerServices.InternalsVisibleToAttribute">
+      <_Parameter1>Pretune.Test</_Parameter1>
+    </AssemblyAttribute>
+  </ItemGroup>
   
   <Target Name="SetNuspecProperties" AfterTargets="Publish">
     <PropertyGroup>
