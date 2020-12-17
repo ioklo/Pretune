@@ -165,9 +165,10 @@ namespace Pretune
                         throw new PretuneGeneralException("internal error");
 
                     string propertyName = char.ToUpper(memberName[0]) + memberName.Substring(1);
+                    string typeName = member.Item1.ToString();
 
                     var propDeclText = @$"
-public string {propertyName}
+public {typeName} {propertyName}
 {{
     get => {memberName};
     set

@@ -13,7 +13,7 @@
     <GenerateNuspecDependsOn>Publish</GenerateNuspecDependsOn>
     <Nullable>enable</Nullable>
   </PropertyGroup>
-
+  
   <ItemGroup>
     <AssemblyAttribute Include="System.Runtime.CompilerServices.InternalsVisibleToAttribute">
       <_Parameter1>Pretune.Test</_Parameter1>

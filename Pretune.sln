@@ -10,12 +10,13 @@ Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Sample", "Sample\Sample.csp
 		{46EB4BBF-5E96-42F1-A34A-BA1FC89F0302} = {46EB4BBF-5E96-42F1-A34A-BA1FC89F0302}
 	EndProjectSection
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Pretune.Test", "Pretune.Test\Pretune.Test.csproj", "{5C5600DE-0A21-4E54-A9D5-294F5B7D20F5}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Pretune.Test", "Pretune.Test\Pretune.Test.csproj", "{5C5600DE-0A21-4E54-A9D5-294F5B7D20F5}"
 EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Solution Items", "Solution Items", "{A246FE79-BEAE-4168-9A98-E578D50CF640}"
 	ProjectSection(SolutionItems) = preProject
 		.gitattributes = .gitattributes
 		.gitignore = .gitignore
+		LICENSE.txt = LICENSE.txt
 		NuGet.config = NuGet.config
 	EndProjectSection
 EndProject
