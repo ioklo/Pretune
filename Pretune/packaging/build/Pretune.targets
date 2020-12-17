@@ -1,12 +1,12 @@
 ﻿<Project ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
 
   <PropertyGroup>
-    <PretuneAssemblyPath>$(MSBuildThisFileDirectory)\..\tools\Pretune.dll</PretuneAssemblyPath>
+    <PretuneAssemblyPath>$(MSBuildThisFileDirectory)..\tools\Pretune.dll</PretuneAssemblyPath>
     <PretuneGeneratedPath>Generated</PretuneGeneratedPath>
   </PropertyGroup>
 
   <ItemGroup>
-    <PretuneItem Include="@(Compile)" Exclude="$(PretuneGeneratedPath)\**\*.cs"></PretuneItem>
+    <PretuneItem Include="@(Compile)" Exclude="$(PretuneGeneratedPath)\**\*.cs"></PretuneItem>    
   </ItemGroup>
   
   <!--<Target Name="ClearPreturn" BeforeTargets="Pretune">
@@ -21,9 +21,24 @@
     <Message Importance="high" Text="MSBuildProjectDirectory: $(MSBuildProjectDirectory)" />
   </Target>-->
 
-  <Target Name="Pretune" BeforeTargets="BeforeCompile"          
+    <!--
+      'a/b/c.cs' 
+      => ['Generated', 'a/b', 'c' + '.g.cs' ] 
+      => [$(PretuneGeneratedPath), [System.IO.Path]::GetDirectoryName(), %(filename), '.g.cs']
+      <PretuneGeneratedItem 
+    -->
+  
+  <Target Name="PretuneClean" BeforeTargets="BeforeClean">
+    <PropertyGroup>
+      <PretuneGeneratedPath></PretuneGeneratedPath>
+    </PropertyGroup>
+    <Error Condition="'$(PretuneGeneratedPath)' == ''" />
+    <RemoveDir Directories="$(PretuneGeneratedPath)" Condition="'$(PretuneGeneratedPath)' != ''"/>
+  </Target>
+
+  <Target Name="PretuneCompile" BeforeTargets="BeforeCompile"          
           Inputs="@(PretuneItem)"
-          Outputs="@(PretuneItem->'$(PretuneGeneratedPath)\%(Identity)')" Condition="'$(DesignTimeBuild)'!='true'">
+          Outputs="@(PretuneItem->'$(PretuneGeneratedPath)\$([System.IO.Path]::GetDirectoryName(`%(Identity)`))\%(Filename).g.cs')" Condition="'$(DesignTimeBuild)'!='true'">
 
     <PropertyGroup>
       <PretuneResponseFile>$(IntermediateOutputPath)\Pretune.rsp</PretuneResponseFile>
@@ -40,8 +55,8 @@
     </ReadLinesFromFile>
 
     <ItemGroup>
-      <!--중복이 발생할 수 있지만, KeepDuplicates만 꺼져있으면 안심 -->
-      <Compile Include="@(PretuneGeneratedItem)" />
+      <!-- NOTICE: if an generated item has custom metadata, 'KeepDuplicates' doesn't work -->
+      <Compile Include="@(PretuneGeneratedItem)" KeepDuplicates="False"/>
     </ItemGroup>
     
   </Target>

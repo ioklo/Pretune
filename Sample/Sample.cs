@@ -10,7 +10,7 @@ namespace CodeGenerator
     {
         public int X { get; set; }
         public int Y { get => 1; } // no generation
-        T Param2;
+        T Param;
     }
 
     [AutoConstructor, ImplementINotifyPropertyChanged]
