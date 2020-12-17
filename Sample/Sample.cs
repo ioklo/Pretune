@@ -13,31 +13,22 @@ namespace CodeGenerator
         T Param;
     }
 
+    [AutoConstructor]
+    public partial class PolarCoord
+    {
+        int x;
+        int y;
+
+    }
+
+
     [AutoConstructor, ImplementINotifyPropertyChanged]
-    public partial class Property : System.ComponentModel.INotifyPropertyChanged
+    public partial class Property
     {
         string firstName;
         string lastName;
 
-        // 
-        [DependsOn(nameof(firstName), nameof(lastName))]
-        public string FullName { get => $"{firstName} {lastName}"; }
-
-        // generated
-        //public event PropertyChangedEventHandler PropertyChanged;
-
-        //public string FirstName
-        //{
-        //    get => firstName;
-        //    set
-        //    {
-        //        if (!firstName.Equals(value))
-        //        {
-        //            firstName = value;
-        //            PropertyChanged?.Invoke(this, new System.ComponentModel.PropertyChangedEventArgs("FirstName"));
-        //            PropertyChanged?.Invoke(this, new System.ComponentModel.PropertyChangedEventArgs("FullName"));
-        //        }
-        //    }
-        //}
+        //[DependsOn(nameof(firstName), nameof(lastName))]
+        //public string FullName { get => $"{firstName} {lastName}"; }
     }
 }

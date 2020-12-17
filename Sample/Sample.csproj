@@ -5,7 +5,7 @@
     <TargetFramework>netcoreapp3.1</TargetFramework>
     <RestorePackagesPath>packages</RestorePackagesPath>
   </PropertyGroup>
-
+  
   <ItemGroup>
     <PackageReference Include="Pretune" Version="1.0.0" />
   </ItemGroup>

@@ -1,10 +1,12 @@
-﻿using System;
+﻿using Pretune;
+using System;
 using System.Collections.Generic;
 using System.Text;
 
 namespace Sample.A
 {
-    class Sample
+    [AutoConstructor]
+    partial class Sample
     {
     }
 }

@@ -115,11 +115,10 @@ namespace Pretune
                 {
                     var memberName = member.Item2.ToString();
 
-                    string paramName;
-                    if (0 < memberName.Length)
-                        paramName = "@" + char.ToLower(memberName[0]) + memberName.Substring(1);
-                    else
-                        paramName = "@" + memberName;
+                    if (memberName.Length == 0)
+                        throw new PretuneGeneralException("internal error");
+
+                    string paramName = "@" + char.ToLower(memberName[0]) + memberName.Substring(1);
 
                     if (parameters.Count != 0)
                         parameters.Add(Token(SyntaxKind.CommaToken));
@@ -152,18 +151,39 @@ namespace Pretune
 
             if (bImplementINotifyPropertyChanged)
             {
-                var eventDecl = EventFieldDeclaration(
-                    VariableDeclaration(
-                        QualifiedName(
-                            QualifiedName(
-                                IdentifierName("System"),
-                                IdentifierName("ComponentModel")),
-                            IdentifierName("PropertyChangedEventHandler")))
-                        .WithVariables(SingletonSeparatedList(VariableDeclarator(Identifier("PropertyChanged")))))
-                        .WithModifiers(TokenList(Token(SyntaxKind.PublicKeyword)));
-
+                var eventDecl = ParseMemberDeclaration("public event System.ComponentModel.PropertyChangedEventHandler PropertyChanged;");
+                if (eventDecl == null)
+                    throw new PretuneGeneralException("internal error");
                 memberDecls.Add(eventDecl);
 
+                // 프로퍼티 별로 순회한다
+                foreach (var member in members)
+                {
+                    var memberName = member.Item2.ToString();
+
+                    if (memberName.Length == 0)
+                        throw new PretuneGeneralException("internal error");
+
+                    string propertyName = char.ToUpper(memberName[0]) + memberName.Substring(1);
+
+                    var propDeclText = @$"
+public string {propertyName}
+{{
+    get => {memberName};
+    set
+    {{
+        if (!{memberName}.Equals(value))
+        {{
+            {memberName} = value;
+            PropertyChanged?.Invoke(this, new System.ComponentModel.PropertyChangedEventArgs(""{propertyName}""));
+        }}
+    }}
+}}";
+                    var propDecl = ParseMemberDeclaration(propDeclText);
+                    if (propDecl == null) throw new PretuneGeneralException("internal error");
+
+                    memberDecls.Add(propDecl);
+                }
             }
 
             var classDecl = ClassDeclaration(node.Identifier)

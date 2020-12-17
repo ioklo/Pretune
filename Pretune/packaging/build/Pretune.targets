@@ -2,37 +2,15 @@
 
   <PropertyGroup>
     <PretuneAssemblyPath>$(MSBuildThisFileDirectory)..\tools\Pretune.dll</PretuneAssemblyPath>
-    <PretuneGeneratedPath>Generated</PretuneGeneratedPath>
+    <PretuneGeneratedPath>PretuneGenerated</PretuneGeneratedPath>
   </PropertyGroup>
 
   <ItemGroup>
     <PretuneItem Include="@(Compile)" Exclude="$(PretuneGeneratedPath)\**\*.cs"></PretuneItem>    
-  </ItemGroup>
-  
-  <!--<Target Name="ClearPreturn" BeforeTargets="Pretune">
-    --><!-- a.cs / a.generated.cs --><!--
-    <Delete Condition="Exists('%(Compile.filename)') AND Exists('%(Compile.filename)')"
-  </Target>-->
-
-  <!--<Target Name="Pretune2" BeforeTargets="BeforeCompile">
-    <Message Importance="high" Text="PretuneAssemblyPath: $(PretuneAssemblyPath)" />
-    <Message Importance="high" Text="MSBuildBinPath: $(MSBuildBinPath)" />
-    <Message Importance="high" Text="MSBuildRuntimeType: $(MSBuildRuntimeType)" />
-    <Message Importance="high" Text="MSBuildProjectDirectory: $(MSBuildProjectDirectory)" />
-  </Target>-->
-
-    <!--
-      'a/b/c.cs' 
-      => ['Generated', 'a/b', 'c' + '.g.cs' ] 
-      => [$(PretuneGeneratedPath), [System.IO.Path]::GetDirectoryName(), %(filename), '.g.cs']
-      <PretuneGeneratedItem 
-    -->
+  </ItemGroup>  
   
   <Target Name="PretuneClean" BeforeTargets="BeforeClean">
-    <PropertyGroup>
-      <PretuneGeneratedPath></PretuneGeneratedPath>
-    </PropertyGroup>
-    <Error Condition="'$(PretuneGeneratedPath)' == ''" />
+    <Error Condition="'$(PretuneGeneratedPath)' == ''" Text="BE CAREFUL!, PretuneGeneratedPath SHOULD NOT be empty, especially on CLEANING" />
     <RemoveDir Directories="$(PretuneGeneratedPath)" Condition="'$(PretuneGeneratedPath)' != ''"/>
   </Target>
 
