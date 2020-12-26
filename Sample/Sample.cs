@@ -10,15 +10,14 @@ namespace CodeGenerator
     {
         public int X { get; set; }
         public int Y { get => 1; } // no generation
-        T Param;
+        T Params;
     }
 
-    [AutoConstructor]
+    [AutoConstructor, ImplementIEquatable]
     public partial class PolarCoord
     {
         int x;
         int y;
-
     }
 
 

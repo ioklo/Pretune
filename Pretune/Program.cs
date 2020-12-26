@@ -1,6 +1,9 @@
 ﻿using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
+using Pretune.Abstractions;
+using Pretune.Generators;
 using System;
+using System.Collections.Immutable;
 using System.Diagnostics;
 using System.IO;
 using System.Reflection;
@@ -55,7 +58,13 @@ namespace Pretune
                         return 1;
                 }
 
-                var processor = new Processor(fileProvider, switchInfo.GeneratedDirectory, switchInfo.OutputsFile, switchInfo.InputFiles);
+                var identifierConverter = new CamelCaseIdentifierConverter();
+                var generators = ImmutableArray.Create<IGenerator>(
+                    new ConstructorGenerator(identifierConverter),
+                    new INotifyPropertyChangedGenerator(identifierConverter),
+                    new IEquatableGenerator());
+
+                var processor = new Processor(fileProvider, switchInfo.GeneratedDirectory, switchInfo.OutputsFile, switchInfo.InputFiles, generators);
                 processor.Process();
 
                 return 0;

@@ -1,6 +1,6 @@
 ﻿using System;
 
-namespace Pretune
+namespace Pretune.Abstractions
 {
     internal interface IFileProvider
     {

@@ -4,10 +4,11 @@
     <OutputType>Exe</OutputType>
     <TargetFramework>netcoreapp3.1</TargetFramework>
     <RestorePackagesPath>packages</RestorePackagesPath>
+    <Nullable>enable</Nullable>
   </PropertyGroup>
   
   <ItemGroup>
-    <PackageReference Include="Pretune" Version="1.0.0" />
+    <PackageReference Include="Pretune" Version="0.5.0" />
   </ItemGroup>
   
 </Project>

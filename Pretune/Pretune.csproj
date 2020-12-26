@@ -5,7 +5,7 @@
     <TargetFramework>netcoreapp3.1</TargetFramework>
     
     <NuspecFile>Pretune.nuspec</NuspecFile>
-    <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
+    <!--<GeneratePackageOnBuild>true</GeneratePackageOnBuild>-->
     <PackageOutputPath>..\Packages</PackageOutputPath>
     <Authors>IOKLO</Authors>
     <Company>N/A</Company>
