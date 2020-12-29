@@ -20,8 +20,7 @@ namespace CodeGenerator
         int y;
     }
 
-
-    [AutoConstructor, ImplementINotifyPropertyChanged]
+    [AutoConstructor, ImplementINotifyPropertyChanged, ImplementIEquatable]
     public partial class Property
     {
         string firstName;

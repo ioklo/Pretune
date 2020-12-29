@@ -42,7 +42,7 @@ namespace Pretune
             return file.StartsWith(directory, StringComparison.CurrentCultureIgnoreCase);
         }
 
-        public void GenerateStub()
+        public SyntaxTree GenerateStub()
         {
             var filePath = Path.Combine(generatedDirectory, "Stub.cs");
 
@@ -59,6 +59,7 @@ namespace Pretune
         public DependsOnAttribute(params string[] names) { }
     }
 }";
+            bool bSave = true;
 
             if (fileProvider.FileExists(filePath))
             {
@@ -66,17 +67,21 @@ namespace Pretune
 
                 // 덮어씌우는 것으로
                 // 내용이 똑같으면 덮어씌우지 않는다
-                if (fileContents == text) return;
+                if (fileContents == text)
+                    bSave = false;
             }
 
-            Save(filePath, text);            
+            if (bSave)
+                Save(filePath, text);
+
+            return ParseSyntaxTree(text);
         }
 
         public void Process()
         {
             // 일단 이 모드에서는 input files만 받는다, output directory는 generated
             // 1. input은 작업디렉토리에 영향을 받아야 하고, relative만 받는다.. Program.cs A\Sample.cs, FullyQualified면 에러
-            GenerateStub();
+            var stubTree = GenerateStub();
 
             var infos = new List<(string OutputFile, SyntaxTree Tree)>();
             foreach (var inputFile in inputFiles)
@@ -92,7 +97,7 @@ namespace Pretune
 
             var mscorlib = MetadataReference.CreateFromFile(typeof(object).Assembly.Location);
             var compilation = CSharpCompilation.Create(null, 
-                infos.Select(info => info.Tree), new[] { mscorlib });
+                infos.Select(info => info.Tree).Prepend(stubTree), new[] { mscorlib });
 
             foreach(var info in infos)
             {

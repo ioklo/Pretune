@@ -21,11 +21,7 @@ namespace Pretune.Generators
 
         public bool ShouldApply(ITypeSymbol typeSymbol)
         {
-            foreach (var attributeData in typeSymbol.GetAttributes())
-                if (attributeData.AttributeClass != null && attributeData.AttributeClass.Name == "AutoConstructor")
-                    return true;
-
-            return false;
+            return Misc.HasPretuneAttribute(typeSymbol, "AutoConstructor");
         }
 
         public GeneratorResult Generate(ITypeSymbol typeSymbol)

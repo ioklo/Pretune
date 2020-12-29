@@ -15,11 +15,7 @@ namespace Pretune.Generators
     {
         public bool ShouldApply(ITypeSymbol typeSymbol)
         {
-            foreach (var attributeData in typeSymbol.GetAttributes())
-                if (attributeData.AttributeClass != null && attributeData.AttributeClass.Name == "ImplementIEquatable")
-                    return true;
-
-            return false;
+            return Misc.HasPretuneAttribute(typeSymbol, "ImplementIEquatable");
         }
 
         MemberDeclarationSyntax GenerateEquals(ITypeSymbol typeSymbol, string typeName)

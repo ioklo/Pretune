@@ -35,6 +35,19 @@ namespace Pretune
             throw new PretuneGeneralException();
         }
 
+        public static bool HasPretuneAttribute(ISymbol symbol, string name)
+        {
+            return symbol.GetAttributes().Any(attrData => IsPretuneAttribute(attrData, name));
+        }
+
+        public static bool IsPretuneAttribute(AttributeData attrData, string name)
+        {
+            if (attrData.AttributeClass == null) return false;
+
+            return attrData.AttributeClass.ToString() == $"Pretune.{name}Attribute" ||
+                attrData.AttributeClass.Name == name;
+        }
+
         public static IEnumerable<ISymbol> EnumerateFields(ITypeSymbol typeSymbol)
         {
             foreach (var member in typeSymbol.GetMembers())
@@ -55,6 +68,6 @@ namespace Pretune
                     continue;
                 }
             }
-        }
+        }        
     }
 }

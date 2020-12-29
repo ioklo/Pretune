@@ -1,49 +1,12 @@
 using Pretune.Abstractions;
 using Pretune.Generators;
 using System;
-using System.Collections.Generic;
 using System.Collections.Immutable;
 using System.Linq;
 using Xunit;
 
 namespace Pretune.Test
 {
-    public class TestFileProvider : IFileProvider
-    {
-        HashSet<string> createdDirectories;
-        Dictionary<string, string> fileContents;
-
-        public TestFileProvider()
-        {
-            createdDirectories = new HashSet<string>();
-            fileContents = new Dictionary<string, string>();
-        }
-
-        public void CreateDirectory(string path)
-        {
-            // Logging
-            createdDirectories.Add(path);
-        }
-
-        public bool FileExists(string path)
-        {
-            return fileContents.ContainsKey(path);
-        }
-
-        public string ReadAllText(string path)
-        {
-            if (fileContents.TryGetValue(path, out var contents))
-                return contents;
-
-            throw new PretuneGeneralException();
-        }
-
-        public void WriteAllText(string path, string contents)
-        {
-            fileContents[path] = contents;
-        }
-    }
-
     public class UnitTest1
     {
         // UnitOfWorkName_ScenarioName_ExpectedBehavior
@@ -71,7 +34,7 @@ namespace Pretune.Test
         }
 
         [Fact]
-        public void Process_InputFileNeedGenerateFile_GenerateOutputsFile()
+        public void Process_InputCauseGeneratingFiles_GenerateOutputsFile()
         {
             var testFileProvider = new TestFileProvider();
             testFileProvider.WriteAllText("Program.cs", @"
@@ -97,8 +60,7 @@ public partial class Sample<T>
         [Fact]
         public void AutoConstructor_SimpleInput_GenerateConstuctor()
         {
-            var testFileProvider = new TestFileProvider();
-            testFileProvider.WriteAllText("Program.cs", @"
+            var input = @"
 namespace N
 {
     [AutoConstructor]
@@ -108,16 +70,8 @@ namespace N
         public int Y { get => 1; } // no generation
         T Params;
     }
-}");
-            var identifierConverter = new CamelCaseIdentifierConverter();
-            var generators = ImmutableArray.Create<IGenerator>(
-                new ConstructorGenerator(identifierConverter),
-                new INotifyPropertyChangedGenerator(identifierConverter));
-            var processor = new Processor(testFileProvider, "Generated", "obj/Debug/Pretune.outputs", new[] { "Program.cs" }, generators);
-
-            processor.Process();
-
-            var text = testFileProvider.ReadAllText("Generated\\Program.g.cs");
+}";
+            var output = SingleTextProcess(input);
 
             var expected = @"#nullable enable
 
@@ -133,14 +87,13 @@ namespace N
     }
 }";
             
-            Assert.Equal(expected, text);
+            Assert.Equal(expected, output);
         }
 
         [Fact]
-        public void ImplementINotifyPropertyChanged_SimpleInput_ImplmenetINotifyPropertyChanged()
+        public void ImplementINotifyPropertyChanged_SimpleInput_ImplemnetINotifyPropertyChanged()
         {
-            var testFileProvider = new TestFileProvider();
-            testFileProvider.WriteAllText("Program.cs", @"
+            var input = @"
 namespace N
 {
     [ImplementINotifyPropertyChanged]
@@ -149,16 +102,8 @@ namespace N
         string firstName;
         T lastName;
     }
-}");
-            var identifierConverter = new CamelCaseIdentifierConverter();
-            var generators = ImmutableArray.Create<IGenerator>(
-                new ConstructorGenerator(identifierConverter),
-                new INotifyPropertyChangedGenerator(identifierConverter));
-            var processor = new Processor(testFileProvider, "Generated", "obj/Debug/Pretune.outputs", new[] { "Program.cs" }, generators);
-
-            processor.Process();
-
-            var text = testFileProvider.ReadAllText("Generated\\Program.g.cs");
+}";
+            var output = SingleTextProcess(input);
 
             var expected = @"#nullable enable
 
@@ -195,14 +140,137 @@ namespace N
     }
 }";
 
-            Assert.Equal(expected, text);
+            Assert.Equal(expected, output);
+        }
+
+        string SingleTextProcess(string input)
+        {
+            var identifierConverter = new CamelCaseIdentifierConverter();
+            var generators = ImmutableArray.Create<IGenerator>(
+                new ConstructorGenerator(identifierConverter),
+                new INotifyPropertyChangedGenerator(identifierConverter),
+                new IEquatableGenerator());
+
+            var testFileProvider = new TestFileProvider();
+            testFileProvider.WriteAllText("Program.cs", input);
+            var processor = new Processor(testFileProvider, "Generated", "obj/Debug/Pretune.outputs", new[] { "Program.cs" }, generators);
+
+            processor.Process();
+
+            return testFileProvider.ReadAllText("Generated\\Program.g.cs");
+        }
+
+        [Fact]
+        public void ImplementINotifyPropertyChanged_HasDependsOnAttributes_AddExtraNotifications()
+        {
+            var input = @"using Pretune;
+
+namespace N
+{
+    [ImplementINotifyPropertyChanged]
+    public partial class Sample<T>
+    {
+        string firstName;
+        T lastName;
+
+        [DependsOn(nameof(firstName), nameof(lastName))]
+        public string FamilyName { get => @$""{firstName} {lastName}""; }
+    }
+}";
+            var output = SingleTextProcess(input);
+            
+            var expected = @"#nullable enable
+
+using Pretune;
+
+namespace N
+{
+    public partial class Sample<T> : System.ComponentModel.INotifyPropertyChanged
+    {
+        public event System.ComponentModel.PropertyChangedEventHandler? PropertyChanged;
+        public string FirstName
+        {
+            get => firstName;
+            set
+            {
+                if (!System.Collections.Generic.EqualityComparer<string>.Default.Equals(firstName, value))
+                {
+                    firstName = value;
+                    PropertyChanged?.Invoke(this, new System.ComponentModel.PropertyChangedEventArgs(""FirstName""));
+                    PropertyChanged?.Invoke(this, new System.ComponentModel.PropertyChangedEventArgs(""FamilyName""));
+                }
+            }
+        }
+
+        public T LastName
+        {
+            get => lastName;
+            set
+            {
+                if (!System.Collections.Generic.EqualityComparer<T>.Default.Equals(lastName, value))
+                {
+                    lastName = value;
+                    PropertyChanged?.Invoke(this, new System.ComponentModel.PropertyChangedEventArgs(""LastName""));
+                    PropertyChanged?.Invoke(this, new System.ComponentModel.PropertyChangedEventArgs(""FamilyName""));
+                }
+            }
+        }
+    }
+}";
+            Assert.Equal(expected, output);
+        }
+
+        [Fact]
+        public void ImplementINotifyPropertyChanged_PrivateFieldHasDependsOnAttribute_IgnoreAttribute()
+        {
+            var input = @"using Pretune;
+
+namespace N
+{
+    [ImplementINotifyPropertyChanged]
+    public partial class Sample<T>
+    {
+        string firstName;
+
+        [DependsOn(nameof(firstName))]
+        public string P1 { get; } // Warning, auto property, no generation
+
+        [DependsOn(nameof(firstName))]
+        private string P2 { get => firstName; } // Warning, private property, no generation
+    }
+}";
+            var output = SingleTextProcess(input);
+
+            var expected = @"#nullable enable
+
+using Pretune;
+
+namespace N
+{
+    public partial class Sample<T> : System.ComponentModel.INotifyPropertyChanged
+    {
+        public event System.ComponentModel.PropertyChangedEventHandler? PropertyChanged;
+        public string FirstName
+        {
+            get => firstName;
+            set
+            {
+                if (!System.Collections.Generic.EqualityComparer<string>.Default.Equals(firstName, value))
+                {
+                    firstName = value;
+                    PropertyChanged?.Invoke(this, new System.ComponentModel.PropertyChangedEventArgs(""FirstName""));
+                }
+            }
+        }
+    }
+}";
+            Assert.Equal(expected, output);
         }
 
         [Fact]
         public void ImplementIEquatable_SimpleInput_ImplementIEquatable()
         {
-            var testFileProvider = new TestFileProvider();
-            testFileProvider.WriteAllText("Program.cs", @"
+            var input = @"
 namespace N
 {
     [ImplementIEquatable]
@@ -211,17 +279,9 @@ namespace N
         int x;
         public string Y { get; }
     }
-}");
-            var identifierConverter = new CamelCaseIdentifierConverter();
-            var generators = ImmutableArray.Create<IGenerator>(
-                new ConstructorGenerator(identifierConverter),
-                new INotifyPropertyChangedGenerator(identifierConverter),
-                new IEquatableGenerator());
-
-            var processor = new Processor(testFileProvider, "PretuneGenerated", "obj/Debug/Pretune.outputs", new[] { "Program.cs" }, generators);
-            processor.Process();            
-
-            var text = testFileProvider.ReadAllText("PretuneGenerated\\Program.g.cs");
+}";
+            var output = SingleTextProcess(input);
+            
             var expected = @"#nullable enable
 
 namespace N
@@ -244,7 +304,7 @@ namespace N
     }
 }";
 
-            Assert.Equal(expected, text);
+            Assert.Equal(expected, output);
         }
     }
 }

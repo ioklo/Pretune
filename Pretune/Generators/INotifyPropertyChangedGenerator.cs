@@ -4,6 +4,7 @@ using Pretune.Abstractions;
 using System;
 using System.Collections.Generic;
 using System.Collections.Immutable;
+using System.Linq;
 using System.Text;
 using static Microsoft.CodeAnalysis.CSharp.SyntaxFactory;
 
@@ -19,30 +20,71 @@ namespace Pretune.Generators
 
         public bool ShouldApply(ITypeSymbol typeSymbol)
         {
-            foreach (var attributeData in typeSymbol.GetAttributes())
-                if (attributeData.AttributeClass != null && attributeData.AttributeClass.Name == "ImplementINotifyPropertyChanged")
-                    return true;
-
-            return false;
+            return Misc.HasPretuneAttribute(typeSymbol, "ImplementINotifyPropertyChanged");
         }
 
-        public GeneratorResult Generate(ITypeSymbol typeSymbol)
+        IEnumerable<IFieldSymbol> GetTargetFields(ITypeSymbol typeSymbol)
         {
-            var memberDecls = new List<MemberDeclarationSyntax>();
+            return typeSymbol.GetMembers().OfType<IFieldSymbol>()
+                .Where(field => field.AssociatedSymbol == null);
+        }
 
-            var eventDecl = ParseMemberDeclaration("public event System.ComponentModel.PropertyChangedEventHandler? PropertyChanged;");
-            if (eventDecl == null)
-                throw new PretuneGeneralException("internal error");
-            memberDecls.Add(eventDecl);
+        ICollection<(IPropertySymbol Prop, AttributeData DependsOnAttr)> GetDependsOnProperties(ITypeSymbol typeSymbol)
+        {
+            var autoProps = typeSymbol.GetMembers()
+                .OfType<IFieldSymbol>()
+                .Select(field => field.AssociatedSymbol)
+                .OfType<IPropertySymbol>()
+                .ToHashSet(SymbolEqualityComparer.Default);
 
-            // 프로퍼티 별로 순회한다
-            foreach (var field in Misc.EnumerateFields(typeSymbol))
+            return typeSymbol.GetMembers().OfType<IPropertySymbol>()
+                .Where(prop =>
+                {
+                    return prop.DeclaredAccessibility == Accessibility.Public &&
+                        !autoProps.Contains(prop);
+                })
+                .SelectMany(prop => 
+                    prop.GetAttributes().Where(attrData => Misc.IsPretuneAttribute(attrData, "DependsOn"))
+                                        .Select(attrData => (Prop: prop, DependsOnAttr: attrData))
+                ).ToList();
+        }
+
+        Dictionary<IFieldSymbol, List<IPropertySymbol>> GetDependsOnInfos(ITypeSymbol typeSymbol, List<IFieldSymbol> fields)
+        {
+            var fieldsByName = fields.ToDictionary(field => field.Name);
+
+            var dict = new Dictionary<IFieldSymbol, List<IPropertySymbol>>(SymbolEqualityComparer.Default);
+            foreach (var info in GetDependsOnProperties(typeSymbol))
             {
-                string memberName = field.Name;
-                string propertyName = identifierConverter.ConvertMemberToProperty(memberName);
-                string typeName = Misc.GetFieldTypeSyntax(field).ToString();
+                // DependsOn("fieldName", "fieldName", ...)
+                foreach(var typedConstant in info.DependsOnAttr.ConstructorArguments[0].Values)
+                {
+                    if (typedConstant.Value is string fieldName)
+                    {
+                        if (!fieldsByName.TryGetValue(fieldName, out var field)) continue;
+                        
+                        if (!dict.TryGetValue(field, out var props))
+                        {
+                            props = new List<IPropertySymbol>();
+                            dict.Add(field, props);
+                        }
 
-                var propDeclText = @$"
+                        props.Add(info.Prop);
+                    }
+                }
+            }
+
+            return dict;
+        }
+
+        StatementSyntax CreatePropertyChangedInvocation(string propName)
+        {
+            return ParseStatement(@$"PropertyChanged?.Invoke(this, new System.ComponentModel.PropertyChangedEventArgs(""{propName}""));");
+        }
+
+        MemberDeclarationSyntax CreatePropertyDeclaration(string typeName, string propertyName, string memberName, ICollection<StatementSyntax> extraInvocations)
+        {
+            var propDeclText = @$"
 public {typeName} {propertyName}
 {{
     get => {memberName};
@@ -52,12 +94,41 @@ public {typeName} {propertyName}
         {{
             {memberName} = value;
             PropertyChanged?.Invoke(this, new System.ComponentModel.PropertyChangedEventArgs(""{propertyName}""));
+            {string.Join(Environment.NewLine, extraInvocations)}
         }}
     }}
 }}";
-                var propDecl = ParseMemberDeclaration(propDeclText);
-                if (propDecl == null) throw new PretuneGeneralException("internal error");
+            var propDecl = ParseMemberDeclaration(propDeclText);
+            if (propDecl == null) throw new PretuneGeneralException("internal error");
 
+            return propDecl;
+        }
+
+        public GeneratorResult Generate(ITypeSymbol typeSymbol)
+        {
+            var fields = GetTargetFields(typeSymbol).ToList();
+            var dependsOnInfos = GetDependsOnInfos(typeSymbol, fields);
+
+            var memberDecls = new List<MemberDeclarationSyntax>();
+
+            var eventDecl = ParseMemberDeclaration("public event System.ComponentModel.PropertyChangedEventHandler? PropertyChanged;");
+            if (eventDecl == null)
+                throw new PretuneGeneralException("internal error");
+            memberDecls.Add(eventDecl);            
+            
+            foreach (var field in fields)
+            {
+                string memberName = field.Name;
+                string propertyName = identifierConverter.ConvertMemberToProperty(memberName);
+                string typeName = Misc.GetFieldTypeSyntax(field).ToString();
+
+                ICollection<StatementSyntax> extraInvocations;
+                if (dependsOnInfos.TryGetValue(field, out var props))
+                    extraInvocations = props.Select(prop => CreatePropertyChangedInvocation(prop.Name)).ToList();
+                else
+                    extraInvocations = Array.Empty<StatementSyntax>();
+
+                var propDecl = CreatePropertyDeclaration(typeName, propertyName, memberName, extraInvocations);
                 memberDecls.Add(propDecl);
             }
             
