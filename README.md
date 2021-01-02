@@ -145,7 +145,7 @@ Add 'Pretune' package from nuget
 
 ### CLI
 ```
-dotnet add package Pretune --version 0.5.0
+dotnet add package Pretune --version 0.6.0
 ```
 
 ## Requirements
