@@ -2,10 +2,10 @@
 Source-based C# preprocessor generating boilerplate code before compile.
 
 ## Pros
- - **Simple**. The only things you have to do is **adding Nuget package** and **annotating to class**.
+ - **Simple**. The only things you have to do is **adding Nuget package** and **annotating to class**
  - Easy to debug. Can see the generated codes in IDE.
- - Depends on .net 3.1 runtime. (doesn't need .net 5 sdks)
- - No additional assembly dependencies embedded for publishing. It's development-time tool.
+ - Depends on only .net 3.1 runtime.
+ - No additional assembly dependencies embedded for publishing.
  - Using C# code as DSL, c# compiler will verify input is well-typed.
 
 ## Features 
@@ -40,7 +40,7 @@ partial class MyClass
     }
 }
 ```
-> **NOTICE** Though this feature replaced by `record` of C# 9, it's still useful for the project that needs previous version of C#. And it will be applied to struct (ASAP).
+> **NOTICE** Though this feature can be replaced by `record` of C# 9, it's still useful for the project that needs previous version of C#. And it also supports struct.
 
 ### Implementing `INotifyPropetyChanged` <a name="implement_inotifypropertychanged"> </a> 
 
