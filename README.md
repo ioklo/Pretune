@@ -1,10 +1,11 @@
 # Pretune
-Syntax-based C# preprocessor generating boilerplate code before compile.
+Source-based C# preprocessor generating boilerplate code before compile.
 
 ## Pros
- - Can be applied to older version of .net projects. (it has nothing to do with newer 'SourceGenerator' feature on .net 5)
- - No assembly dependencies needed. It's development-time tool.
- - Can check the generated code, and also set breakpoints on debug.
+ - **Simple**. The only things you have to do is **adding Nuget package** and **annotating to class**.
+ - Easy to debug. Can see the generated codes in IDE.
+ - Depends on .net 3.1 runtime. (doesn't need .net 5 sdks)
+ - No additional assembly dependencies embedded for publishing. It's development-time tool.
  - Using C# code as DSL, c# compiler will verify input is well-typed.
 
 ## Features 
@@ -144,7 +145,7 @@ Add 'Pretune' package from nuget
 
 ### CLI
 ```
-dotnet add package Pretune --version 0.5.0
+dotnet add package Pretune --version 0.6.0
 ```
 
 ## Requirements
