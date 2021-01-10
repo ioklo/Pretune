@@ -26,7 +26,7 @@ namespace CodeGenerator
         string firstName;
         string lastName;
 
-        //[DependsOn(nameof(firstName), nameof(lastName))]
-        //public string FullName { get => $"{firstName} {lastName}"; }
+        [DependsOn(nameof(firstName), nameof(lastName))]
+        public string FullName { get => $"{firstName} {lastName}"; }
     }
 }

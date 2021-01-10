@@ -58,6 +58,51 @@ public partial class Sample<T>
         }
 
         [Fact]
+        public void Processor_NestedClass_PlaceNestedClassRight()
+        {
+            var input = @"
+namespace N
+{
+    [AutoConstructor]
+    partial class X
+    {
+        [AutoConstructor]
+        public partial class Sample<T>
+        {
+            public int X { get; set; }
+            public int Y { get => 1; } // no generation
+            T Params;
+        }
+    }
+}";
+            var output = SingleTextProcess(input);
+
+            var expected = @"#nullable enable
+
+namespace N
+{
+    partial class X
+    {
+        public partial class Sample<T>
+        {
+            public Sample(int x, T @params)
+            {
+                this.X = x;
+                this.Params = @params;
+            }
+        }
+
+        public X()
+        {
+        }
+    }
+}";
+
+            Assert.Equal(expected, output);
+
+        }
+
+        [Fact]
         public void AutoConstructor_SimpleInput_GenerateConstuctor()
         {
             var input = @"
@@ -88,7 +133,7 @@ namespace N
 }";
             
             Assert.Equal(expected, output);
-        }
+        }        
 
         [Fact]
         public void ImplementINotifyPropertyChanged_SimpleInput_ImplemnetINotifyPropertyChanged()
@@ -268,7 +313,7 @@ namespace N
         }
 
         [Fact]
-        public void ImplementIEquatable_SimpleInput_ImplementIEquatable()
+        public void ImplementIEquatable_SimpleClass_ImplementIEquatable()
         {
             var input = @"
 namespace N
@@ -292,6 +337,46 @@ namespace N
         public bool Equals(Script? other)
         {
             return other != null && System.Collections.Generic.EqualityComparer<int>.Default.Equals(x, other.x) && System.Collections.Generic.EqualityComparer<string>.Default.Equals(Y, other.Y);
+        }
+
+        public override int GetHashCode()
+        {
+            var hashCode = new System.HashCode();
+            hashCode.Add(x);
+            hashCode.Add(Y);
+            return hashCode.ToHashCode();
+        }
+    }
+}";
+
+            Assert.Equal(expected, output);
+        }
+
+        [Fact]
+        public void ImplementIEquatable_SimpleStruct_ImplementIEquatable()
+        {
+            var input = @"
+namespace N
+{
+    [ImplementIEquatable]
+    public partial struct Script
+    {
+        int x;
+        public string Y { get; }
+    }
+}";
+            var output = SingleTextProcess(input);
+
+            var expected = @"#nullable enable
+
+namespace N
+{
+    public partial struct Script : System.IEquatable<Script>
+    {
+        public override bool Equals(object? obj) => obj is Script other && Equals(other);
+        public bool Equals(Script other)
+        {
+            return System.Collections.Generic.EqualityComparer<int>.Default.Equals(x, other.x) && System.Collections.Generic.EqualityComparer<string>.Default.Equals(Y, other.Y);
         }
 
         public override int GetHashCode()

@@ -13,12 +13,15 @@ namespace Pretune.Generators
 {
     class IEquatableGenerator : IGenerator
     {
-        public bool ShouldApply(ITypeSymbol typeSymbol)
+        public bool ShouldApply(TypeDeclarationSyntax typeDecl, SemanticModel model)
         {
-            return Misc.HasPretuneAttribute(typeSymbol, "ImplementIEquatable");
+            if (!(typeDecl is ClassDeclarationSyntax) && !(typeDecl is StructDeclarationSyntax))
+                return false;
+
+            return Misc.HasPretuneAttribute(typeDecl, model, "ImplementIEquatable");
         }
 
-        MemberDeclarationSyntax GenerateEquals(ITypeSymbol typeSymbol, string typeName)
+        MemberDeclarationSyntax GenerateClassEquals(ITypeSymbol typeSymbol, string typeName)
         {
             var equalsExps = new List<ExpressionSyntax>();
 
@@ -40,6 +43,29 @@ namespace Pretune.Generators
             // fold
             var returnExp = equalsExps.Aggregate((e1, e2) => BinaryExpression(SyntaxKind.LogicalAndExpression, e1, e2));
             var equalsDecl = ParseMemberDeclaration($"public bool Equals({typeName}? other) {{ return {returnExp}; }}");
+
+            if (equalsDecl == null) throw new PretuneGeneralException();
+            return equalsDecl;
+        }
+
+        MemberDeclarationSyntax GenerateStructEquals(ITypeSymbol typeSymbol, string typeName)
+        {
+            var equalsExps = new List<ExpressionSyntax>();
+
+            foreach (var field in Misc.EnumerateFields(typeSymbol))
+            {
+                var fieldName = field.Name;
+                var type = Misc.GetFieldTypeSyntax(field);
+
+                var exp = ParseExpression($"System.Collections.Generic.EqualityComparer<{type}>.Default.Equals({fieldName}, other.{fieldName})");
+                if (exp == null)
+                    throw new PretuneGeneralException();
+
+                equalsExps.Add(exp);
+            }
+            // fold
+            var returnExp = equalsExps.Aggregate((e1, e2) => BinaryExpression(SyntaxKind.LogicalAndExpression, e1, e2));
+            var equalsDecl = ParseMemberDeclaration($"public bool Equals({typeName} other) {{ return {returnExp}; }}");
 
             if (equalsDecl == null) throw new PretuneGeneralException();
             return equalsDecl;
@@ -109,9 +135,24 @@ namespace Pretune.Generators
 
                 var objEqualsDecl = ParseMemberDeclaration($"public override bool Equals(object? obj) => Equals(obj as {typeName});");
                 if (objEqualsDecl == null) throw new PretuneGeneralException();
+                
+                var equalsDecl = GenerateClassEquals(typeSymbol, typeName);
 
-                //
-                var equalsDecl = GenerateEquals(typeSymbol, typeName);
+                var getHashCodeDecl = GenerateGetHashCode(typeSymbol);
+
+                return new GeneratorResult(
+                    ImmutableArray.Create<BaseTypeSyntax>(SimpleBaseType(equatableType)),
+                    ImmutableArray.Create<MemberDeclarationSyntax>(objEqualsDecl, equalsDecl, getHashCodeDecl));
+            }
+            else if (typeSymbol.TypeKind == TypeKind.Struct)
+            {
+                var typeName = typeSymbol.ToDisplayString(SymbolDisplayFormat.MinimallyQualifiedFormat);
+                var equatableType = ParseTypeName($"System.IEquatable<{typeName}>");
+
+                var objEqualsDecl = ParseMemberDeclaration($"public override bool Equals(object? obj) => obj is {typeName} other && Equals(other);");
+                if (objEqualsDecl == null) throw new PretuneGeneralException();
+
+                var equalsDecl = GenerateStructEquals(typeSymbol, typeName);
 
                 var getHashCodeDecl = GenerateGetHashCode(typeSymbol);
 

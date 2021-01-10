@@ -2,6 +2,7 @@
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 using Pretune.Abstractions;
+using System;
 using System.Collections.Generic;
 using System.Collections.Immutable;
 using System.Linq;
@@ -56,31 +57,90 @@ namespace Pretune
             ).NormalizeWhitespace();
         }
 
+        Frame ExecInNewFrame(Action action)
+        {            
+            var newFrame = new Frame();
+
+            var prevFrame = frame;
+            frame = newFrame;
+
+            try
+            {
+                action.Invoke();
+                return newFrame;
+            }
+            finally 
+            {
+                frame = prevFrame;
+            }            
+        }
+
         public override void VisitNamespaceDeclaration(NamespaceDeclarationSyntax node)
         {
-            var prevFrame = frame;
+            var newFrame = ExecInNewFrame(() => base.VisitNamespaceDeclaration(node));
 
-            frame = new Frame();
-            base.VisitNamespaceDeclaration(node);
-            var member = NamespaceDeclaration(node.Name, node.Externs, node.Usings, frame.Members);
+            if (newFrame.Members.Count != 0)
+            {
+                var namespaceDecl = NamespaceDeclaration(node.Name, node.Externs, node.Usings, newFrame.Members);
+                frame.AddMember(namespaceDecl);
+            }
+        }
 
-            frame = prevFrame;
-            frame.AddMember(member);
+        public override void VisitStructDeclaration(StructDeclarationSyntax node)
+        {
+            var newFrame = ExecInNewFrame(() => base.VisitStructDeclaration(node));
+
+            var typeSymbol = model.GetDeclaredSymbol(node);
+
+            if (typeSymbol == null)
+                throw new PretuneGeneralException();
+
+            var baseTypes = new List<BaseTypeSyntax>();
+            var memberDecls = new List<MemberDeclarationSyntax>(newFrame.Members);
+
+            foreach (var generator in generators)
+            {
+                if (!generator.ShouldApply(node, model)) continue;
+
+                var result = generator.Generate(typeSymbol);
+
+                baseTypes.AddRange(result.BaseTypes);
+                memberDecls.AddRange(result.MemberDecls);
+            }
+
+            if (baseTypes.Count == 0 && memberDecls.Count == 0)
+                return;
+
+            NeedSave = true;
+
+            var structDecl = StructDeclaration(node.Identifier)
+                .WithTypeParameterList(node.TypeParameterList)
+                .WithModifiers(node.Modifiers);
+
+            if (0 < baseTypes.Count)
+                structDecl = structDecl.WithBaseList(BaseList(SeparatedList(baseTypes)));
+
+            if (0 < memberDecls.Count)
+                structDecl = structDecl.WithMembers(List(memberDecls));
+
+            frame.AddMember(structDecl);
         }
 
         public override void VisitClassDeclaration(ClassDeclarationSyntax node)
         {
+            var newFrame = ExecInNewFrame(() => base.VisitClassDeclaration(node));
+
             var typeSymbol = model.GetDeclaredSymbol(node);
             
             if (typeSymbol == null)
                 throw new PretuneGeneralException();
 
             var baseTypes = new List<BaseTypeSyntax>();
-            var memberDecls = new List<MemberDeclarationSyntax>();
+            var memberDecls = new List<MemberDeclarationSyntax>(newFrame.Members);
 
             foreach (var generator in generators)
             {
-                if (!generator.ShouldApply(typeSymbol)) continue;
+                if (!generator.ShouldApply(node, model)) continue;
 
                 var result = generator.Generate(typeSymbol);
 

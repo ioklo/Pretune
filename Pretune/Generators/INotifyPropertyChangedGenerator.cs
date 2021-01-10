@@ -18,9 +18,12 @@ namespace Pretune.Generators
             this.identifierConverter = identifierConvert;
         }
 
-        public bool ShouldApply(ITypeSymbol typeSymbol)
+        public bool ShouldApply(TypeDeclarationSyntax typeDecl, SemanticModel model)
         {
-            return Misc.HasPretuneAttribute(typeSymbol, "ImplementINotifyPropertyChanged");
+            if (!(typeDecl is ClassDeclarationSyntax))
+                return false;
+
+            return Misc.HasPretuneAttribute(typeDecl, model, "ImplementINotifyPropertyChanged");
         }
 
         IEnumerable<IFieldSymbol> GetTargetFields(ITypeSymbol typeSymbol)
@@ -44,7 +47,7 @@ namespace Pretune.Generators
                         !autoProps.Contains(prop);
                 })
                 .SelectMany(prop => 
-                    prop.GetAttributes().Where(attrData => Misc.IsPretuneAttribute(attrData, "DependsOn"))
+                    prop.GetAttributes().Where(attrData => attrData.AttributeClass != null && Misc.IsPretuneAttribute(attrData.AttributeClass, "DependsOn"))
                                         .Select(attrData => (Prop: prop, DependsOnAttr: attrData))
                 ).ToList();
         }

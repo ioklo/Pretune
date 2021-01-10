@@ -19,9 +19,12 @@ namespace Pretune.Generators
             this.identifierConverter = identifierConverter;
         }
 
-        public bool ShouldApply(ITypeSymbol typeSymbol)
+        public bool ShouldApply(TypeDeclarationSyntax typeDecl, SemanticModel model)
         {
-            return Misc.HasPretuneAttribute(typeSymbol, "AutoConstructor");
+            if (!(typeDecl is ClassDeclarationSyntax) && !(typeDecl is StructDeclarationSyntax))
+                return false;
+
+            return Misc.HasPretuneAttribute(typeDecl, model, "AutoConstructor");
         }
 
         public GeneratorResult Generate(ITypeSymbol typeSymbol)

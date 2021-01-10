@@ -35,17 +35,32 @@ namespace Pretune
             throw new PretuneGeneralException();
         }
 
-        public static bool HasPretuneAttribute(ISymbol symbol, string name)
+        public static bool HasPretuneAttribute(TypeDeclarationSyntax typeDecl, SemanticModel model, string name)
         {
-            return symbol.GetAttributes().Any(attrData => IsPretuneAttribute(attrData, name));
+            foreach (var attrList in typeDecl.AttributeLists)
+            {
+                foreach (var attr in attrList.Attributes)
+                {
+                    var symbolInfo = model.GetSymbolInfo(attr);
+                    if (symbolInfo.Symbol is IMethodSymbol methodSymbol) // attribute constructor..
+                        if (IsPretuneAttribute(methodSymbol.ContainingType, name))
+                            return true;
+
+                    // fallback
+                    if (attr.ToString() == name)
+                        return true;
+                }
+            }
+
+            return false;
         }
 
-        public static bool IsPretuneAttribute(AttributeData attrData, string name)
+        public static bool IsPretuneAttribute(INamedTypeSymbol attributeClass, string name)
         {
-            if (attrData.AttributeClass == null) return false;
+            if (attributeClass == null) return false;
 
-            return attrData.AttributeClass.ToString() == $"Pretune.{name}Attribute" ||
-                attrData.AttributeClass.Name == name;
+            return attributeClass.ToString() == $"Pretune.{name}Attribute" ||
+                attributeClass.Name == name;
         }
 
         public static IEnumerable<ISymbol> EnumerateFields(ITypeSymbol typeSymbol)
