@@ -33,7 +33,7 @@ namespace Pretune.Generators
             var parameters = new List<SyntaxNodeOrToken>();
             var statements = new List<StatementSyntax>();
 
-            foreach (var field in Misc.EnumerateFields(typeSymbol))
+            foreach (var field in Misc.EnumerateInstanceFields(typeSymbol))
             {
                 var memberName = field.Name;
                 var paramName = identifierConverter.ConvertMemberToParam(memberName);

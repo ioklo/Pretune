@@ -63,12 +63,14 @@ namespace Pretune
                 attributeClass.Name == name;
         }
 
-        public static IEnumerable<ISymbol> EnumerateFields(ITypeSymbol typeSymbol)
+        public static IEnumerable<ISymbol> EnumerateInstanceFields(ITypeSymbol typeSymbol)
         {
             foreach (var member in typeSymbol.GetMembers())
             {
                 if (member is IFieldSymbol fieldMember)
                 {
+                    if (member.IsStatic) continue;
+
                     if (fieldMember.AssociatedSymbol is IPropertySymbol associatedMember)
                     {
                         yield return associatedMember;

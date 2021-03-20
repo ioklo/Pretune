@@ -34,7 +34,7 @@ namespace Pretune.Test
         }
 
         [Fact]
-        public void Process_InputCauseGeneratingFiles_GenerateOutputsFile()
+        public void Processor_InputCauseGeneratingFiles_GenerateOutputsFile()
         {
             var testFileProvider = new TestFileProvider();
             testFileProvider.WriteAllText("Program.cs", @"
@@ -133,7 +133,39 @@ namespace N
 }";
             
             Assert.Equal(expected, output);
-        }        
+        }
+
+        [Fact]
+        public void AutoConstructor_ContainsStaticVariable_IgnoreStaticVariable()
+        {
+            var input = @"
+namespace N
+{
+    [AutoConstructor]
+    public partial class Sample<T>
+    {
+        public static readonly int X; // no generation
+        public static int Y { get; }
+    }
+}";
+            var output = SingleTextProcess(input);
+
+            var expected = @"#nullable enable
+
+namespace N
+{
+    public partial class Sample<T>
+    {
+        public Sample()
+        {
+        }
+    }
+}";
+
+            Assert.Equal(expected, output);
+        }
+
+
 
         [Fact]
         public void ImplementINotifyPropertyChanged_SimpleInput_ImplemnetINotifyPropertyChanged()

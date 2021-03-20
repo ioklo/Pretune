@@ -29,7 +29,7 @@ namespace Pretune.Generators
             if (nullCheckExp == null) throw new PretuneGeneralException();
             equalsExps.Add(nullCheckExp);
 
-            foreach (var field in Misc.EnumerateFields(typeSymbol))
+            foreach (var field in Misc.EnumerateInstanceFields(typeSymbol))
             {
                 var fieldName = field.Name;
                 var type = Misc.GetFieldTypeSyntax(field);
@@ -52,7 +52,7 @@ namespace Pretune.Generators
         {
             var equalsExps = new List<ExpressionSyntax>();
 
-            foreach (var field in Misc.EnumerateFields(typeSymbol))
+            foreach (var field in Misc.EnumerateInstanceFields(typeSymbol))
             {
                 var fieldName = field.Name;
                 var type = Misc.GetFieldTypeSyntax(field);
@@ -97,7 +97,7 @@ namespace Pretune.Generators
             if (hashCodeDecl == null) throw new PretuneGeneralException();
             stmts.Add(hashCodeDecl);
 
-            var fields = Misc.EnumerateFields(typeSymbol).ToList();
+            var fields = Misc.EnumerateInstanceFields(typeSymbol).ToList();
             AddStatements(stmts, fields, 0, fields.Count);
 
             var retStmt = ReturnStatement(
