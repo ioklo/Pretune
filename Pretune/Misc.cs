@@ -55,6 +55,16 @@ namespace Pretune
             return false;
         }
 
+        public static bool IsNullableType(ISymbol symbol)
+        {
+            if (symbol is IFieldSymbol field)
+                return field.Type.NullableAnnotation == NullableAnnotation.Annotated;
+            else if (symbol is IPropertySymbol property)
+                return property.Type.NullableAnnotation == NullableAnnotation.Annotated;
+
+            return false;
+        }
+
         public static bool IsPretuneAttribute(INamedTypeSymbol attributeClass, string name)
         {
             if (attributeClass == null) return false;
