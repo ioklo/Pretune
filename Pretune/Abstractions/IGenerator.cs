@@ -21,7 +21,7 @@ namespace Pretune.Abstractions
     // output: member decls (syntax)
     interface IGenerator
     {
-        bool ShouldApply(TypeDeclarationSyntax typeDecl, SemanticModel model);
+        bool HandleTypeDecl(TypeDeclarationSyntax typeDecl, SemanticModel model);
         GeneratorResult Generate(ITypeSymbol typeSymbol);
     }
 }

@@ -1,6 +1,7 @@
 ﻿using Pretune.Abstractions;
 using System;
 using System.Collections.Generic;
+using System.Collections.Immutable;
 using System.Linq;
 using System.Text;
 
@@ -10,13 +11,15 @@ namespace Pretune
     {
         public string GeneratedDirectory { get; }
         public string OutputsFile { get; }
-        public IReadOnlyList<string> InputFiles { get; }
+        public ImmutableArray<string> InputFiles { get; }
+        public ImmutableArray<string> ReferenceAssemblyFiles { get; }
 
-        public SwitchInfo(string generatedDirectory, string outputsFile, IEnumerable<string> inputFiles)
+        public SwitchInfo(string generatedDirectory, string outputsFile, ImmutableArray<string> inputFiles, ImmutableArray<string> refAssemblyFiles)
         {
             GeneratedDirectory = generatedDirectory;
             OutputsFile = outputsFile;
-            InputFiles = inputFiles.ToList();
+            InputFiles = inputFiles;
+            ReferenceAssemblyFiles = refAssemblyFiles;
         }
     }
 
@@ -79,19 +82,35 @@ namespace Pretune
             }
 
             return finalArgs.ToArray();
-        }
+        }        
 
         public Result Parse(string[] args)
         {
             var handledArgs = HandleResponseFile(args);
 
             if (handledArgs.Length < 2)
-                return new Result.NeedMoreArguments();
+                return new Result.NeedMoreArguments();            
 
             string generatedDirectory = handledArgs[0];
             string outputsFile = handledArgs[1];
+            ImmutableArray<string> inputFiles;
+            ImmutableArray<string> refAssemblyFiles;
 
-            return new Result.Success(new SwitchInfo(generatedDirectory, outputsFile, handledArgs.Skip(2)));
+            int refSeparatorIndex = Array.IndexOf(handledArgs, "-r", 2);
+            if (refSeparatorIndex != -1)
+            {
+                // 0 1 2 3 4 5 6 7
+                //     f f * a a 
+                inputFiles = ImmutableArray.Create(handledArgs, 2, refSeparatorIndex - 2);
+                refAssemblyFiles = ImmutableArray.Create(handledArgs, refSeparatorIndex + 1, handledArgs.Length - refSeparatorIndex - 1);
+            }
+            else
+            {
+                inputFiles = ImmutableArray.Create(handledArgs, 2, handledArgs.Length - 2);
+                refAssemblyFiles = ImmutableArray<string>.Empty;
+            }
+
+            return new Result.Success(new SwitchInfo(generatedDirectory, outputsFile, inputFiles, refAssemblyFiles));
         }
     }
 }

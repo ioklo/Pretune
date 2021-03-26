@@ -2,7 +2,7 @@
 <package xmlns="http://schemas.microsoft.com/packaging/2012/06/nuspec.xsd">
   <metadata>
     <id>Pretune</id>
-    <version>0.6.5</version>
+    <version>0.7.0</version>
     <authors>IOKLO</authors>
     <description>Syntax-based C# preprocessor generating boilerplate code before compile.</description>
     <license type="expression">Apache-2.0</license>

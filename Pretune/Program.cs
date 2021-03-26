@@ -16,8 +16,8 @@ namespace Pretune
     {   
         static void PrintUsage()
         {
-            Console.WriteLine("Usage: dotnet Pretune.dll");
-            Console.WriteLine("       dotnet Pretune.dll @<response file containing arguments>");
+            Console.WriteLine("Usage: dotnet Pretune.dll @<line-separated file containing arguments>");
+            Console.WriteLine("       dotnet Pretune.dll <generated directory> <output file> <input file> ... -r <reference assembly file1> <reference assembly file2>");
         }
 
         //static IEnumerable<string> EnumerateCSFiles(string inputDirectory, string outputDirectoryName)
@@ -64,7 +64,11 @@ namespace Pretune
                     new INotifyPropertyChangedGenerator(identifierConverter),
                     new IEquatableGenerator());
 
-                var processor = new Processor(fileProvider, switchInfo.GeneratedDirectory, switchInfo.OutputsFile, switchInfo.InputFiles, generators);
+                ImmutableArray<string> refAssemblyFiles = switchInfo.ReferenceAssemblyFiles;
+                if (refAssemblyFiles.Length == 0)
+                    refAssemblyFiles = ImmutableArray.Create(typeof(object).Assembly.Location);
+
+                var processor = new Processor(fileProvider, switchInfo.GeneratedDirectory, switchInfo.OutputsFile, switchInfo.InputFiles, refAssemblyFiles, generators);
                 processor.Process();
 
                 return 0;

@@ -18,7 +18,7 @@ namespace Pretune.Generators
             this.identifierConverter = identifierConvert;
         }
 
-        public bool ShouldApply(TypeDeclarationSyntax typeDecl, SemanticModel model)
+        public bool HandleTypeDecl(TypeDeclarationSyntax typeDecl, SemanticModel model)
         {
             if (!(typeDecl is ClassDeclarationSyntax))
                 return false;
@@ -26,10 +26,11 @@ namespace Pretune.Generators
             return Misc.HasPretuneAttribute(typeDecl, model, "ImplementINotifyPropertyChanged");
         }
 
-        IEnumerable<IFieldSymbol> GetTargetFields(ITypeSymbol typeSymbol)
+        IEnumerable<FieldMemberSymbol> GetTargetFields(ITypeSymbol typeSymbol)
         {
             return typeSymbol.GetMembers().OfType<IFieldSymbol>()
-                .Where(field => field.AssociatedSymbol == null);
+                .Where(field => field.AssociatedSymbol == null)
+                .Select(field => new FieldMemberSymbol(field));
         }
 
         ICollection<(IPropertySymbol Prop, AttributeData DependsOnAttr)> GetDependsOnProperties(ITypeSymbol typeSymbol)
@@ -52,15 +53,18 @@ namespace Pretune.Generators
                 ).ToList();
         }
 
-        Dictionary<IFieldSymbol, List<IPropertySymbol>> GetDependsOnInfos(ITypeSymbol typeSymbol, List<IFieldSymbol> fields)
+        Dictionary<MemberSymbol, List<IPropertySymbol>> GetDependsOnInfos(ITypeSymbol typeSymbol, List<FieldMemberSymbol> fields)
         {
-            var fieldsByName = fields.ToDictionary(field => field.Name);
+            var fieldsByName = fields.ToDictionary(field => field.GetName());
 
-            var dict = new Dictionary<IFieldSymbol, List<IPropertySymbol>>(SymbolEqualityComparer.Default);
+            var dict = new Dictionary<MemberSymbol, List<IPropertySymbol>>(MemberSymbolEqualityComparer.Default);
             foreach (var info in GetDependsOnProperties(typeSymbol))
             {
+                if (info.DependsOnAttr.ConstructorArguments.Length < 1)
+                    throw new PretuneGeneralException();
+
                 // DependsOn("fieldName", "fieldName", ...)
-                foreach(var typedConstant in info.DependsOnAttr.ConstructorArguments[0].Values)
+                foreach (var typedConstant in info.DependsOnAttr.ConstructorArguments[0].Values)
                 {
                     if (typedConstant.Value is string fieldName)
                     {
@@ -121,9 +125,9 @@ public {typeName} {propertyName}
             
             foreach (var field in fields)
             {
-                string memberName = field.Name;
+                string memberName = field.GetName();
                 string propertyName = identifierConverter.ConvertMemberToProperty(memberName);
-                string typeName = Misc.GetFieldTypeSyntax(field).ToString();
+                string typeName = field.GetFieldTypeSyntax().ToString();
 
                 ICollection<StatementSyntax> extraInvocations;
                 if (dependsOnInfos.TryGetValue(field, out var props))

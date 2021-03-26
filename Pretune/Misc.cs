@@ -10,31 +10,7 @@ namespace Pretune
 {
     static class Misc
     {
-        public static TypeSyntax GetFieldTypeSyntax(ISymbol symbol)
-        {
-            var syntaxRef = symbol.DeclaringSyntaxReferences.FirstOrDefault();
-            if (syntaxRef == null)
-                throw new PretuneGeneralException();
-
-            var node = syntaxRef.GetSyntax();            
-            
-            if (node is VariableDeclaratorSyntax varDeclarator)
-            {
-                // FieldDeclSyntax -> VarDeclarationSyntax -> VarDeclaratorSyntax
-                var varDecl = varDeclarator.Parent as VariableDeclarationSyntax;
-                if (varDecl == null)
-                    throw new PretuneGeneralException();
-
-                return varDecl.Type;
-            }
-            else if (node is PropertyDeclarationSyntax propDecl)
-            {
-                return propDecl.Type;
-            }
-
-            throw new PretuneGeneralException();
-        }
-
+        
         public static bool HasPretuneAttribute(TypeDeclarationSyntax typeDecl, SemanticModel model, string name)
         {
             foreach (var attrList in typeDecl.AttributeLists)
@@ -53,17 +29,7 @@ namespace Pretune
             }
 
             return false;
-        }
-
-        public static bool IsNullableType(ISymbol symbol)
-        {
-            if (symbol is IFieldSymbol field)
-                return field.Type.NullableAnnotation == NullableAnnotation.Annotated;
-            else if (symbol is IPropertySymbol property)
-                return property.Type.NullableAnnotation == NullableAnnotation.Annotated;
-
-            return false;
-        }
+        }        
 
         public static bool IsPretuneAttribute(INamedTypeSymbol attributeClass, string name)
         {
@@ -73,7 +39,7 @@ namespace Pretune
                 attributeClass.Name == name;
         }
 
-        public static IEnumerable<ISymbol> EnumerateInstanceFields(ITypeSymbol typeSymbol)
+        public static IEnumerable<MemberSymbol> EnumerateInstanceMembers(ITypeSymbol typeSymbol)
         {
             foreach (var member in typeSymbol.GetMembers())
             {
@@ -83,11 +49,11 @@ namespace Pretune
 
                     if (fieldMember.AssociatedSymbol is IPropertySymbol associatedMember)
                     {
-                        yield return associatedMember;
+                        yield return new PropertyMemberSymbol(associatedMember);
                     }
                     else
                     {
-                        yield return fieldMember;
+                        yield return new FieldMemberSymbol(fieldMember);
                     }
                 }
                 else

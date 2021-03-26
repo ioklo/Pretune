@@ -32,15 +32,16 @@ namespace Pretune
     partial class SyntaxWalker : CSharpSyntaxWalker
     {
         SemanticModel model;
-        ImmutableArray<IGenerator> generators;
+        Dictionary<TypeDeclarationSyntax, List<IGenerator>> typeDeclGeneratorsInfo;
+
         public CompilationUnitSyntax? CompilationUnitSyntax { get; private set; }
         Frame frame;
         public bool NeedSave { get; private set; }
 
-        public SyntaxWalker(SemanticModel model, ImmutableArray<IGenerator> generators)
+        public SyntaxWalker(SemanticModel model, Dictionary<TypeDeclarationSyntax, List<IGenerator>> typeDeclGeneratorsInfo)
         {
             this.model = model;
-            this.generators = generators;
+            this.typeDeclGeneratorsInfo = typeDeclGeneratorsInfo;
 
             CompilationUnitSyntax = null;
             frame = new Frame();
@@ -84,11 +85,14 @@ namespace Pretune
                 var namespaceDecl = NamespaceDeclaration(node.Name, node.Externs, node.Usings, newFrame.Members);
                 frame.AddMember(namespaceDecl);
             }
-        }
+        }        
 
         public override void VisitStructDeclaration(StructDeclarationSyntax node)
         {
             var newFrame = ExecInNewFrame(() => base.VisitStructDeclaration(node));
+
+            if (!typeDeclGeneratorsInfo.TryGetValue(node, out var generators))
+                return;
 
             var typeSymbol = model.GetDeclaredSymbol(node);
 
@@ -100,8 +104,6 @@ namespace Pretune
 
             foreach (var generator in generators)
             {
-                if (!generator.ShouldApply(node, model)) continue;
-
                 var result = generator.Generate(typeSymbol);
 
                 baseTypes.AddRange(result.BaseTypes);
@@ -130,6 +132,9 @@ namespace Pretune
         {
             var newFrame = ExecInNewFrame(() => base.VisitClassDeclaration(node));
 
+            if (!typeDeclGeneratorsInfo.TryGetValue(node, out var generators))
+                return;
+
             var typeSymbol = model.GetDeclaredSymbol(node);
             
             if (typeSymbol == null)
@@ -140,8 +145,6 @@ namespace Pretune
 
             foreach (var generator in generators)
             {
-                if (!generator.ShouldApply(node, model)) continue;
-
                 var result = generator.Generate(typeSymbol);
 
                 baseTypes.AddRange(result.BaseTypes);

@@ -10,21 +10,127 @@ using System.Text;
 using static Microsoft.CodeAnalysis.CSharp.SyntaxFactory;
 
 namespace Pretune.Generators
-{
+{    
     class IEquatableGenerator : IGenerator
     {
-        public bool ShouldApply(TypeDeclarationSyntax typeDecl, SemanticModel model)
+        // unbounded, ImmutableArray<> => NS1.NS2.X (class)
+        // bounded, ImmutableArray<int> => NS1.NS2.X (class symbol)
+
+        Dictionary<INamedTypeSymbol, INamedTypeSymbol> unboundTypeCustomEqComparers;
+        Dictionary<INamedTypeSymbol, INamedTypeSymbol> boundTypeCustomEqComparers;
+
+        public IEquatableGenerator()
+        {
+            unboundTypeCustomEqComparers = new Dictionary<INamedTypeSymbol, INamedTypeSymbol>(SymbolEqualityComparer.Default);
+            boundTypeCustomEqComparers = new Dictionary<INamedTypeSymbol, INamedTypeSymbol>(SymbolEqualityComparer.Default);
+        }
+
+        // GetCustomEqComparer(ImmutableArray<int>)
+        ITypeSymbol? GetCustomEqComparer(ITypeSymbol typeSymbol)
+        {
+            if (typeSymbol is INamedTypeSymbol namedTypeSymbol)
+            {                
+                // ImmutableArray<>를 실제로 쓸 수 없다
+                if (namedTypeSymbol.IsUnboundGenericType) return null;
+
+                // 1. bound에서 먼저 찾는다
+                if (boundTypeCustomEqComparers.TryGetValue(namedTypeSymbol, out var boundTypeComparerType))
+                    return boundTypeComparerType;
+
+                // 2. generic이라면 unbound에서도 찾아본다
+                if (namedTypeSymbol.IsGenericType)
+                {
+                    var unboundTypeSymbol = namedTypeSymbol.ConstructUnboundGenericType();
+                    if (unboundTypeCustomEqComparers.TryGetValue(unboundTypeSymbol, out var unboundTypeComparerType))
+                        return unboundTypeComparerType;
+                }
+            }
+
+            return null;
+        }
+
+        public bool HandleTypeDecl(TypeDeclarationSyntax typeDecl, SemanticModel model)
         {
             if (!(typeDecl is ClassDeclarationSyntax) && !(typeDecl is StructDeclarationSyntax))
                 return false;
 
+            var typeSymbol = model.GetDeclaredSymbol(typeDecl);
+            if (typeSymbol == null)
+                return false;
+
+            foreach(var attr in typeSymbol.GetAttributes())
+            {
+                if (attr.AttributeClass == null || !Misc.IsPretuneAttribute(attr.AttributeClass, "CustomEqualityComparer"))
+                    continue;
+
+                foreach (var arg in attr.ConstructorArguments)
+                {
+                    // TODO: 아니라면 워닝
+                    if (arg.Kind == TypedConstantKind.Array)
+                    {
+                        foreach (var value in arg.Values)
+                        {
+                            if (value.Kind != TypedConstantKind.Type) continue;
+
+                            if (value.Value is INamedTypeSymbol namedArg)
+                            {
+                                // ImmutableArray<> ..
+                                if (namedArg.IsUnboundGenericType)
+                                    unboundTypeCustomEqComparers.Add(namedArg, typeSymbol);
+                                else
+                                    boundTypeCustomEqComparers.Add(namedArg, typeSymbol);
+                            }
+                        }
+                    }
+                }
+            }
+
             return Misc.HasPretuneAttribute(typeDecl, model, "ImplementIEquatable");
         }
 
-        StatementSyntax GenerateTestStmtNonNullableMember(ISymbol field)
+        StatementSyntax? HandleCustomEqualityComparer(MemberSymbol memberSymbol)
         {
+            var comparerTypeSymbol = GetCustomEqComparer(memberSymbol.GetTypeSymbol());
+            if (comparerTypeSymbol == null) return null;
+
+            // if (!global::MyNamespace.CustomEqualityComparer.Equals(member, other.member)) return false;
+
+            var fieldName = memberSymbol.GetName();
+            var typeExp = ParseExpression($"global::{comparerTypeSymbol.ToDisplayString()}");
+
+            return IfStatement(
+                PrefixUnaryExpression(
+                    SyntaxKind.LogicalNotExpression,
+                    InvocationExpression(
+                        MemberAccessExpression(
+                            SyntaxKind.SimpleMemberAccessExpression,
+                            typeExp,
+                            IdentifierName("Equals")
+                        )
+                    ).WithArgumentList(
+                        ArgumentList(SeparatedList<ArgumentSyntax>(new SyntaxNodeOrToken[]{
+                            Argument(IdentifierName(fieldName)),
+                            Token(SyntaxKind.CommaToken),
+                            Argument(MemberAccessExpression(
+                                SyntaxKind.SimpleMemberAccessExpression,
+                                IdentifierName("other"),
+                                IdentifierName(fieldName)
+                            ))
+                        }))
+                    )
+                ),
+                ReturnStatement(LiteralExpression(SyntaxKind.FalseLiteralExpression))
+            );
+        }        
+
+        StatementSyntax GenerateTestStmtNonNullableMember(MemberSymbol memberSymbol)
+        {
+            // field 타입이 Custom인 경우
+            var statement = HandleCustomEqualityComparer(memberSymbol);
+            if (statement != null) return statement;
+
             // if (!member.Equals(other.member)) return false;
-            var fieldName = field.Name;
+            var fieldName = memberSymbol.GetName();
 
             return IfStatement(
                 PrefixUnaryExpression(
@@ -43,51 +149,115 @@ namespace Pretune.Generators
             );
         }
 
-        StatementSyntax GenerateTestStmtNullableMember(ISymbol field)
+        StatementSyntax GenerateTestStmtNullableReferenceTypeMember(MemberSymbol memberSymbol)
         {
-            var fieldName = field.Name;
+            var fieldName = memberSymbol.GetName();
+            var nonnullableStmt = GenerateTestStmtNonNullableMember(memberSymbol);
 
             return IfStatement(
-    BinaryExpression(
-        SyntaxKind.NotEqualsExpression,
-        IdentifierName(fieldName),
-        LiteralExpression(
-            SyntaxKind.NullLiteralExpression)),
-    Block(
-        SingletonList<StatementSyntax>(
-            IfStatement(
-                PrefixUnaryExpression(
-                    SyntaxKind.LogicalNotExpression,
-                    InvocationExpression(
+                BinaryExpression(
+                    SyntaxKind.NotEqualsExpression,
+                    IdentifierName(fieldName),
+                    LiteralExpression(SyntaxKind.NullLiteralExpression)
+                ),
+                Block(SingletonList<StatementSyntax>(nonnullableStmt))
+            ).WithElse(ElseClause(
+                IfStatement(
+                    BinaryExpression(
+                        SyntaxKind.NotEqualsExpression,
                         MemberAccessExpression(
                             SyntaxKind.SimpleMemberAccessExpression,
-                            IdentifierName("ns"),
-                            IdentifierName("Equals")))
-                    .WithArgumentList(
-                        ArgumentList(
-                            SingletonSeparatedList<ArgumentSyntax>(
-                                Argument(
+                            IdentifierName("other"),
+                            IdentifierName(fieldName)
+                        ),
+                        LiteralExpression(SyntaxKind.NullLiteralExpression)
+                    ),
+                    ReturnStatement(LiteralExpression(SyntaxKind.FalseLiteralExpression))
+                )
+            ));
+        }
+
+        StatementSyntax GenerateTestStmtNullableValueTypeMember(MemberSymbol memberSymbol)
+        {
+            var memberName = memberSymbol.GetName();
+
+            return IfStatement(
+                BinaryExpression(
+                    SyntaxKind.LogicalAndExpression,
+                    BinaryExpression(
+                        SyntaxKind.NotEqualsExpression,
+                        IdentifierName(memberName),
+                        LiteralExpression(SyntaxKind.NullLiteralExpression)
+                    ),
+                    BinaryExpression(
+                        SyntaxKind.NotEqualsExpression,
+                        MemberAccessExpression(
+                            SyntaxKind.SimpleMemberAccessExpression,
+                            IdentifierName("other"),
+                            IdentifierName(memberName)
+                        ),
+                        LiteralExpression(SyntaxKind.NullLiteralExpression)
+                    )
+                ),
+                Block(SingletonList<StatementSyntax>(
+                    IfStatement(
+                        PrefixUnaryExpression(
+                            SyntaxKind.LogicalNotExpression,
+                            InvocationExpression(
+                                MemberAccessExpression(
+                                    SyntaxKind.SimpleMemberAccessExpression,
+                                    MemberAccessExpression(
+                                        SyntaxKind.SimpleMemberAccessExpression,
+                                        IdentifierName(memberName),
+                                        IdentifierName("Value")
+                                    ),
+                                    IdentifierName("Equals")
+                                )
+                            ).WithArgumentList(ArgumentList(SingletonSeparatedList<ArgumentSyntax>(Argument(
+                                MemberAccessExpression(
+                                    SyntaxKind.SimpleMemberAccessExpression,
                                     MemberAccessExpression(
                                         SyntaxKind.SimpleMemberAccessExpression,
                                         IdentifierName("other"),
-                                        IdentifierName(fieldName))))))),
-                ReturnStatement(
-                    LiteralExpression(
-                        SyntaxKind.FalseLiteralExpression))))))
-.WithElse(
-    ElseClause(
-        IfStatement(
-            BinaryExpression(
-                SyntaxKind.NotEqualsExpression,
-                MemberAccessExpression(
-                    SyntaxKind.SimpleMemberAccessExpression,
-                    IdentifierName("other"),
-                    IdentifierName(fieldName)),
-                LiteralExpression(
-                    SyntaxKind.NullLiteralExpression)),
-            ReturnStatement(
-                LiteralExpression(
-                    SyntaxKind.FalseLiteralExpression)))));
+                                        IdentifierName(memberName)
+                                    ),
+                                    IdentifierName("Value")
+                                )
+                            ))))
+                        ),
+                        ReturnStatement(LiteralExpression(SyntaxKind.FalseLiteralExpression))
+                    )
+                ))
+            ).WithElse(ElseClause(
+                IfStatement(
+                    BinaryExpression(
+                        SyntaxKind.LogicalOrExpression,
+                        BinaryExpression(
+                            SyntaxKind.NotEqualsExpression,
+                            IdentifierName(memberName),
+                            LiteralExpression(SyntaxKind.NullLiteralExpression)
+                        ),
+                        BinaryExpression(
+                            SyntaxKind.NotEqualsExpression,
+                            MemberAccessExpression(
+                                SyntaxKind.SimpleMemberAccessExpression,
+                                IdentifierName("other"),
+                                IdentifierName("nx")
+                            ),
+                            LiteralExpression(SyntaxKind.NullLiteralExpression)
+                        )
+                    ),
+                    ReturnStatement(LiteralExpression(SyntaxKind.FalseLiteralExpression))
+                )
+            ));
+        }
+
+        StatementSyntax GenerateTestStmtNullableMember(MemberSymbol memberSymbol)
+        {
+            if (memberSymbol.GetTypeSymbol().IsReferenceType)
+                return GenerateTestStmtNullableReferenceTypeMember(memberSymbol);
+            else
+                return GenerateTestStmtNullableValueTypeMember(memberSymbol);
         }
 
         MemberDeclarationSyntax GenerateClassEquals(ITypeSymbol typeSymbol, string typeName)
@@ -96,20 +266,14 @@ namespace Pretune.Generators
             var stmts = new List<StatementSyntax>();
 
             // 1. null test
-            var nullTestStmt = ParseStatement("if (other != null) return false;");
+            var nullTestStmt = ParseStatement("if (other == null) return false;");
             if (nullTestStmt == null) throw new PretuneGeneralException();
             stmts.Add(nullTestStmt);
 
             // 2. foreach(field in symbol)
-            foreach (var field in Misc.EnumerateInstanceFields(typeSymbol))
+            foreach (var member in Misc.EnumerateInstanceMembers(typeSymbol))
             {
-                StatementSyntax stmt;
-
-                if (!Misc.IsNullableType(field))
-                    stmt = GenerateTestStmtNonNullableMember(field);
-                else
-                    stmt = GenerateTestStmtNullableMember(field);                
-
+                var stmt = GenerateTestMemberStmt(member);
                 stmts.Add(stmt);
             }
 
@@ -137,57 +301,110 @@ namespace Pretune.Generators
             return equalsDecl;
         }
 
+        StatementSyntax GenerateTestMemberStmt(MemberSymbol member)
+        {
+            if (!member.IsNullableType())
+                return GenerateTestStmtNonNullableMember(member);
+            else
+                return GenerateTestStmtNullableMember(member);
+        }
+
         MemberDeclarationSyntax GenerateStructEquals(ITypeSymbol typeSymbol, string typeName)
         {
-            var equalsExps = new List<ExpressionSyntax>();
-
-            foreach (var field in Misc.EnumerateInstanceFields(typeSymbol))
+            // statement로 
+            var stmts = new List<StatementSyntax>();
+            
+            // 1. foreach(field in symbol)
+            foreach (var member in Misc.EnumerateInstanceMembers(typeSymbol))
             {
-                var fieldName = field.Name;
-                var type = Misc.GetFieldTypeSyntax(field);
-
-                var exp = ParseExpression($"System.Collections.Generic.EqualityComparer<{type}>.Default.Equals({fieldName}, other.{fieldName})");
-                if (exp == null)
-                    throw new PretuneGeneralException();
-
-                equalsExps.Add(exp);
+                var stmt = GenerateTestMemberStmt(member);
+                stmts.Add(stmt);
             }
-            // fold
-            var returnExp = equalsExps.Aggregate((e1, e2) => BinaryExpression(SyntaxKind.LogicalAndExpression, e1, e2));
-            var equalsDecl = ParseMemberDeclaration($"public bool Equals({typeName} other) {{ return {returnExp}; }}");
 
-            if (equalsDecl == null) throw new PretuneGeneralException();
+            // 2. return true;
+            var retStmt = ReturnStatement(LiteralExpression(SyntaxKind.TrueLiteralExpression));
+            stmts.Add(retStmt);
+
+            var equalsDecl = MethodDeclaration(
+                PredefinedType(Token(SyntaxKind.BoolKeyword)),
+                Identifier("Equals")
+            ).WithModifiers(
+                TokenList(Token(SyntaxKind.PublicKeyword))
+            ).WithParameterList(
+                ParameterList(SingletonSeparatedList<ParameterSyntax>(
+                    Parameter(
+                        Identifier("other")
+                    ).WithType(
+                        IdentifierName(typeName)
+                    )
+                ))
+            ).WithBody(
+                Block(stmts)
+            );
+
             return equalsDecl;
         }
 
-        StatementSyntax GenerateHashCodeAddNonNullableMember(string memberName)
+        ExpressionSyntax GenerateGetHashCodeCustom(ITypeSymbol comparerTypeSymbol, MemberSymbol memberSymbol)
         {
-            // hashCode.Add(this.x.GetHashCode());
+            var memberName = memberSymbol.GetName();
+            var typeExp = ParseExpression($"global::{comparerTypeSymbol.ToDisplayString()}");
 
+            return InvocationExpression(MemberAccessExpression(
+                SyntaxKind.SimpleMemberAccessExpression,
+                typeExp,
+                IdentifierName("GetHashCode")
+            )).WithArgumentList(ArgumentList(SingletonSeparatedList<ArgumentSyntax>(Argument(
+                MemberAccessExpression(
+                    SyntaxKind.SimpleMemberAccessExpression,
+                    ThisExpression(),
+                    IdentifierName(memberName)
+                )
+            ))));
+        }
+
+        StatementSyntax GenerateHashCodeAddNonNullableMember(MemberSymbol memberSymbol)
+        {
+            var exp = GenerateGetHashCode(memberSymbol);
+
+            // hashCode.Add(this.x.GetHashCode());
             return ExpressionStatement(
                 InvocationExpression(MemberAccessExpression(
                         SyntaxKind.SimpleMemberAccessExpression,
                         IdentifierName("hashCode"),
                         IdentifierName("Add")
                 )).WithArgumentList(
-                    ArgumentList(SingletonSeparatedList<ArgumentSyntax>(Argument(
-                        InvocationExpression(MemberAccessExpression(
-                            SyntaxKind.SimpleMemberAccessExpression,
-                            MemberAccessExpression(
-                                SyntaxKind.SimpleMemberAccessExpression,
-                                ThisExpression(),
-                                IdentifierName(memberName)
-                            ),
-                            IdentifierName("GetHashCode")
-                        ))
-                    )))
+                    ArgumentList(SingletonSeparatedList<ArgumentSyntax>(Argument(exp)))
                 )
             );
         }
 
-        StatementSyntax GenerateHashCodeAddNullableMember(string memberName)
+        // this.x.GetHashCode() or global::NS1.CustomComparer.GetHashCode(this.x)
+        ExpressionSyntax GenerateGetHashCode(MemberSymbol memberSymbol)
         {
+            var comparerTypeSymbol = GetCustomEqComparer(memberSymbol.GetTypeSymbol());
+            if (comparerTypeSymbol != null)
+                return GenerateGetHashCodeCustom(comparerTypeSymbol, memberSymbol);
+
+            var memberName = memberSymbol.GetName();
+
+            return InvocationExpression(MemberAccessExpression(
+                SyntaxKind.SimpleMemberAccessExpression,
+                MemberAccessExpression(
+                    SyntaxKind.SimpleMemberAccessExpression,
+                    ThisExpression(),
+                    IdentifierName(memberName)
+                ),
+                IdentifierName("GetHashCode")
+            ));
+        }
+
+        StatementSyntax GenerateHashCodeAddNullableReferenceTypeMember(MemberSymbol memberSymbol)
+        {
+            var memberName = memberSymbol.GetName();
             // hashCode.Add(this.x == null ? 0 : this.x.GetHashCode());
+
+            var exp = GenerateGetHashCode(memberSymbol);
 
             return ExpressionStatement(
                 InvocationExpression(MemberAccessExpression(
@@ -207,15 +424,58 @@ namespace Pretune.Generators
                                 LiteralExpression(SyntaxKind.NullLiteralExpression)
                             ),
                             LiteralExpression(SyntaxKind.NumericLiteralExpression, Literal(0)),
-                            InvocationExpression(MemberAccessExpression(
-                                SyntaxKind.SimpleMemberAccessExpression,
+                            exp
+                        )
+                    )))
+                )
+            );
+        }
+
+        StatementSyntax GenerateHashCodeAddNullableValueTypeMember(MemberSymbol memberSymbol)
+        {
+            var memberName = memberSymbol.GetName();
+            // hashCode.Add(this.x == null ? 0 : this.x.Value.GetHashCode());
+
+            return ExpressionStatement(
+                InvocationExpression(
+                    MemberAccessExpression(
+                        SyntaxKind.SimpleMemberAccessExpression,
+                        IdentifierName("hashCode"),
+                        IdentifierName("Add")
+                    )
+                ).WithArgumentList(
+                    ArgumentList(SingletonSeparatedList<ArgumentSyntax>(Argument(
+                        ConditionalExpression(
+                            BinaryExpression(
+                                SyntaxKind.EqualsExpression,
                                 MemberAccessExpression(
                                     SyntaxKind.SimpleMemberAccessExpression,
                                     ThisExpression(),
                                     IdentifierName(memberName)
                                 ),
-                                IdentifierName("GetHashCode")
-                            ))
+                                LiteralExpression(
+                                    SyntaxKind.NullLiteralExpression
+                                )
+                            ),
+                            LiteralExpression(
+                                SyntaxKind.NumericLiteralExpression,
+                                Literal(0)
+                            ),
+                            InvocationExpression(
+                                MemberAccessExpression(
+                                    SyntaxKind.SimpleMemberAccessExpression,
+                                    MemberAccessExpression(
+                                        SyntaxKind.SimpleMemberAccessExpression,
+                                        MemberAccessExpression(
+                                            SyntaxKind.SimpleMemberAccessExpression,
+                                            ThisExpression(),
+                                            IdentifierName(memberName)
+                                        ),
+                                        IdentifierName("Value")
+                                    ),
+                                    IdentifierName("GetHashCode")
+                                )
+                            )
                         )
                     )))
                 )
@@ -232,13 +492,13 @@ namespace Pretune.Generators
             stmts.Add(hashCodeDecl);
 
             // 2. foreach fields hashcode.Add(...); 
-            foreach (var field in Misc.EnumerateInstanceFields(typeSymbol))
+            foreach (var member in Misc.EnumerateInstanceMembers(typeSymbol))
             {
                 StatementSyntax stmt;
-                if (!Misc.IsNullableType(field))
-                    stmt = GenerateHashCodeAddNonNullableMember(field.Name);
+                if (!member.IsNullableType())
+                    stmt = GenerateHashCodeAddNonNullableMember(member);
                 else
-                    stmt = GenerateHashCodeAddNullableMember(field.Name);
+                    stmt = GenerateHashCodeAddNullableMember(member);
 
                 stmts.Add(stmt);
             }
@@ -263,6 +523,14 @@ namespace Pretune.Generators
             );
         }
 
+        StatementSyntax GenerateHashCodeAddNullableMember(MemberSymbol member)
+        {
+            if (member.GetTypeSymbol().IsReferenceType)
+                return GenerateHashCodeAddNullableReferenceTypeMember(member);
+            else
+                return GenerateHashCodeAddNullableValueTypeMember(member);
+        }
+
         // class를 
         GeneratorResult GenerateClass(ITypeSymbol typeSymbol)
         {
@@ -273,6 +541,23 @@ namespace Pretune.Generators
             if (objEqualsDecl == null) throw new PretuneGeneralException();
 
             var equalsDecl = GenerateClassEquals(typeSymbol, typeName);
+
+            var getHashCodeDecl = GenerateGetHashCode(typeSymbol);
+
+            return new GeneratorResult(
+                ImmutableArray.Create<BaseTypeSyntax>(SimpleBaseType(equatableType)),
+                ImmutableArray.Create<MemberDeclarationSyntax>(objEqualsDecl, equalsDecl, getHashCodeDecl));
+        }
+
+        GeneratorResult GenerateStruct(ITypeSymbol typeSymbol)
+        {
+            var typeName = typeSymbol.ToDisplayString(SymbolDisplayFormat.MinimallyQualifiedFormat);
+            var equatableType = ParseTypeName($"System.IEquatable<{typeName}>");
+
+            var objEqualsDecl = ParseMemberDeclaration($"public override bool Equals(object? obj) => obj is {typeName} other && Equals(other);");
+            if (objEqualsDecl == null) throw new PretuneGeneralException();
+
+            var equalsDecl = GenerateStructEquals(typeSymbol, typeName);
 
             var getHashCodeDecl = GenerateGetHashCode(typeSymbol);
 
@@ -293,19 +578,7 @@ namespace Pretune.Generators
             }
             else if (typeSymbol.TypeKind == TypeKind.Struct)
             {
-                var typeName = typeSymbol.ToDisplayString(SymbolDisplayFormat.MinimallyQualifiedFormat);
-                var equatableType = ParseTypeName($"System.IEquatable<{typeName}>");
-
-                var objEqualsDecl = ParseMemberDeclaration($"public override bool Equals(object? obj) => obj is {typeName} other && Equals(other);");
-                if (objEqualsDecl == null) throw new PretuneGeneralException();
-
-                var equalsDecl = GenerateStructEquals(typeSymbol, typeName);
-
-                var getHashCodeDecl = GenerateGetHashCode(typeSymbol);
-
-                return new GeneratorResult(
-                    ImmutableArray.Create<BaseTypeSyntax>(SimpleBaseType(equatableType)),
-                    ImmutableArray.Create<MemberDeclarationSyntax>(objEqualsDecl, equalsDecl, getHashCodeDecl));
+                return GenerateStruct(typeSymbol);
             }
 
             throw new PretuneGeneralException();

@@ -27,13 +27,15 @@
     <WriteLinesToFile Overwrite="true" File="$(PretuneResponseFile)" Lines="$(PretuneGeneratedPath)" />
     <WriteLinesToFile File="$(PretuneResponseFile)" Lines="$(PretuneOutputsFile)" />
     <WriteLinesToFile File="$(PretuneResponseFile)" Lines="@(PretuneItem)" />
+    <WriteLinesToFile File="$(PretuneResponseFile)" Lines="-r" />
+    <WriteLinesToFile File="$(PretuneResponseFile)" Lines="@(ReferencePathWithRefAssemblies)" />
     <Exec Command="dotnet &quot;$(PretuneAssemblyPath)&quot; @$(PretuneResponseFile)"/>
     <ReadLinesFromFile File="$(PretuneOutputsFile)">
       <Output TaskParameter="Lines" ItemName="PretuneGeneratedItem"/>
     </ReadLinesFromFile>
 
     <ItemGroup>
-      <!-- NOTICE: if an generated item has custom metadata, 'KeepDuplicates' doesn't work -->
+      <!-- NOTICE: if an generated items have different metadata, 'KeepDuplicates=False' doesn't work -->
       <Compile Include="@(PretuneGeneratedItem)" KeepDuplicates="False"/>
     </ItemGroup>
     

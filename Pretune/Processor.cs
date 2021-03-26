@@ -12,25 +12,33 @@ using System.Text;
 using static Microsoft.CodeAnalysis.CSharp.SyntaxFactory;
 
 namespace Pretune
-{
+{   
     class Processor
     {
         string generatedDirectory;
         string outputsFile;
-        IReadOnlyList<string> inputFiles;
+        ImmutableArray<string> inputFiles;
+        ImmutableArray<string> refAssemblyFiles;
         ImmutableArray<IGenerator> generators;
 
         List<string> outputFiles;
         IFileProvider fileProvider;
         
 
-        public Processor(IFileProvider fileProvider, string generatedDirectory, string outputsFile, IEnumerable<string> inputFiles, ImmutableArray<IGenerator> generators)
+        public Processor(
+            IFileProvider fileProvider, 
+            string generatedDirectory, 
+            string outputsFile, 
+            ImmutableArray<string> inputFiles, 
+            ImmutableArray<string> refAssemblyFiles,
+            ImmutableArray<IGenerator> generators)
         {
             this.fileProvider = fileProvider;
 
             this.generatedDirectory = generatedDirectory;
             this.outputsFile = outputsFile;
-            this.inputFiles = inputFiles.ToList();
+            this.inputFiles = inputFiles;
+            this.refAssemblyFiles = refAssemblyFiles;
             this.generators = generators;
 
             this.outputFiles = new List<string>();
@@ -48,6 +56,8 @@ namespace Pretune
 
             var text = @"#nullable enable
 using System;
+using System.Collections.Immutable;
+using System.Linq;
 
 namespace Pretune
 {
@@ -57,6 +67,26 @@ namespace Pretune
     class DependsOnAttribute : Attribute 
     {
         public DependsOnAttribute(params string[] names) { }
+    }
+
+    class CustomEqualityComparerAttribute : Attribute 
+    {
+        public CustomEqualityComparerAttribute(params Type[] types) { }
+    }
+
+    [CustomEqualityComparer(typeof(ImmutableArray<>))]
+    class DefaultCustomEqualityComparer
+    {
+        public static bool Equals<T>(ImmutableArray<T> x, ImmutableArray<T> y)
+            => ImmutableArrayExtensions.SequenceEqual(x, y);
+
+        public static int GetHashCode<T>(ImmutableArray<T> obj)
+        {
+            var hashCode = new HashCode();
+            foreach(var elem in obj)
+                hashCode.Add(elem == null ? 0 : elem.GetHashCode());
+            return hashCode.ToHashCode();
+        }
     }
 }";
             bool bSave = true;
@@ -95,15 +125,41 @@ namespace Pretune
                 infos.Add((outputFile, tree));
             }
 
-            var mscorlib = MetadataReference.CreateFromFile(typeof(object).Assembly.Location);
+            var refs = refAssemblyFiles.Select(refAssemblyFile => MetadataReference.CreateFromFile(refAssemblyFile));
+            
             var compilation = CSharpCompilation.Create(null, 
-                infos.Select(info => info.Tree).Prepend(stubTree), new[] { mscorlib });
+                infos.Select(info => info.Tree).Prepend(stubTree), refs);            
 
+            var typeDeclGeneratorsInfo = new Dictionary<TypeDeclarationSyntax, List<IGenerator>>();
+
+            // 1. Collection Phase
+            foreach(var tree in infos.Select(info => info.Tree).Prepend(stubTree))
+            {
+                var model = compilation.GetSemanticModel(tree);
+
+                // type declaration에 대해서 generator들에게 처리할 기회를 준다
+                foreach (var typeDecl in tree.GetRoot().DescendantNodes().OfType<TypeDeclarationSyntax>())
+                {
+                    var relatedGenerators = new List<IGenerator>();
+                    foreach (var generator in generators)
+                    {
+                        // phase2에서 처리할
+                        bool bWillGenerateMembers = generator.HandleTypeDecl(typeDecl, model);
+                        if (bWillGenerateMembers)
+                            relatedGenerators.Add(generator);
+                    }
+
+                    if (relatedGenerators.Count != 0)
+                        typeDeclGeneratorsInfo.Add(typeDecl, relatedGenerators);
+                }
+            }
+
+            // 2. Generation Phase
             foreach(var info in infos)
             {
                 var model = compilation.GetSemanticModel(info.Tree);
 
-                var walker = new SyntaxWalker(model, generators);
+                var walker = new SyntaxWalker(model, typeDeclGeneratorsInfo);
                 walker.Visit(info.Tree.GetRoot());
 
                 if (walker.NeedSave)

@@ -19,7 +19,7 @@ namespace Pretune.Generators
             this.identifierConverter = identifierConverter;
         }
 
-        public bool ShouldApply(TypeDeclarationSyntax typeDecl, SemanticModel model)
+        public bool HandleTypeDecl(TypeDeclarationSyntax typeDecl, SemanticModel model)
         {
             if (!(typeDecl is ClassDeclarationSyntax) && !(typeDecl is StructDeclarationSyntax))
                 return false;
@@ -33,16 +33,16 @@ namespace Pretune.Generators
             var parameters = new List<SyntaxNodeOrToken>();
             var statements = new List<StatementSyntax>();
 
-            foreach (var field in Misc.EnumerateInstanceFields(typeSymbol))
+            foreach (var member in Misc.EnumerateInstanceMembers(typeSymbol))
             {
-                var memberName = field.Name;
+                var memberName = member.GetName();
                 var paramName = identifierConverter.ConvertMemberToParam(memberName);
 
                 if (parameters.Count != 0)
                     parameters.Add(Token(SyntaxKind.CommaToken));
 
                 var parameter = Parameter(Identifier(paramName))
-                    .WithType(Misc.GetFieldTypeSyntax(field));
+                    .WithType(member.GetFieldTypeSyntax());
 
                 parameters.Add(parameter);
 

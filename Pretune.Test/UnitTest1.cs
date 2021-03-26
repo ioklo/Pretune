@@ -4,6 +4,7 @@ using System;
 using System.Collections.Immutable;
 using System.Linq;
 using Xunit;
+using static Pretune.Test.TestMisc;
 
 namespace Pretune.Test
 {
@@ -19,7 +20,10 @@ namespace Pretune.Test
                 "Generated",
                 "obj/Debug/Pretune.outputs",
                 "Program.cs",
-                "Sample/A.cs"
+                "Sample/A.cs",
+                "-r",
+                "MyAssembly1.dll",
+                "MyAssembly2.dll",
             };
 
             var testFileProvider = new TestFileProvider();
@@ -31,21 +35,8 @@ namespace Pretune.Test
             Assert.Equal("obj/Debug/Pretune.outputs", switchInfo.OutputsFile);
             Assert.Equal("Program.cs", switchInfo.InputFiles[0]);
             Assert.Equal("Sample/A.cs", switchInfo.InputFiles[1]);
-        }
-
-        // ImmutableArray<> 인 경우 C.Equals를 사용
-        [CustomEquatable(typeof(ImmutableArray<>))]
-        static class C
-        {
-            public bool Equals<T>(ImmutableArray<T> x, ImmutableArray<T> y)
-            {
-
-            }
-
-            public int GetHashCode<T>(ImmutableArray<T> x)
-            {
-
-            }
+            Assert.Equal("MyAssembly1.dll", switchInfo.ReferenceAssemblyFiles[0]);
+            Assert.Equal("MyAssembly2.dll", switchInfo.ReferenceAssemblyFiles[1]);
         }
 
         [Fact]
@@ -65,7 +56,9 @@ public partial class Sample<T>
                 new ConstructorGenerator(identifierConverter),
                 new INotifyPropertyChangedGenerator(identifierConverter));
 
-            var processor = new Processor(testFileProvider, "Generated", "obj/Debug/Pretune.outputs", new[] { "Program.cs" }, generators);
+            var refAssembly = typeof(object).Assembly.Location;
+
+            var processor = new Processor(testFileProvider, "Generated", "obj/Debug/Pretune.outputs", ImmutableArray.Create("Program.cs"), ImmutableArray.Create(refAssembly), generators);
             processor.Process();
 
             var text = testFileProvider.ReadAllText("obj/Debug/Pretune.outputs");
@@ -235,23 +228,7 @@ namespace N
             Assert.Equal(expected, output);
         }
 
-        string SingleTextProcess(string input)
-        {
-            var identifierConverter = new CamelCaseIdentifierConverter();
-            var generators = ImmutableArray.Create<IGenerator>(
-                new ConstructorGenerator(identifierConverter),
-                new INotifyPropertyChangedGenerator(identifierConverter),
-                new IEquatableGenerator());
-
-            var testFileProvider = new TestFileProvider();
-            testFileProvider.WriteAllText("Program.cs", input);
-            var processor = new Processor(testFileProvider, "Generated", "obj/Debug/Pretune.outputs", new[] { "Program.cs" }, generators);
-
-            processor.Process();
-
-            return testFileProvider.ReadAllText("Generated\\Program.g.cs");
-        }
-
+        
         [Fact]
         public void ImplementINotifyPropertyChanged_HasDependsOnAttributes_AddExtraNotifications()
         {
@@ -353,181 +330,6 @@ namespace N
                     PropertyChanged?.Invoke(this, new System.ComponentModel.PropertyChangedEventArgs(""FirstName""));
                 }
             }
-        }
-    }
-}";
-            Assert.Equal(expected, output);
-        }
-
-        [Fact]
-        public void ImplementIEquatable_SimpleClass_ImplementIEquatable()
-        {
-            var input = @"
-namespace N
-{
-    [ImplementIEquatable]
-    public partial class Script
-    {
-        int x;
-        public string Y { get; }
-    }
-}";
-            var output = SingleTextProcess(input);
-            var expected = @"#nullable enable
-
-namespace N
-{
-    public partial class Script : System.IEquatable<Script>
-    {
-        public override bool Equals(object? obj) => Equals(obj as Script);
-        public bool Equals(Script? other)
-        {
-            if (other != null)
-                return false;
-            if (!x.Equals(other.x))
-                return false;
-            if (!Y.Equals(other.Y))
-                return false;
-            return true;
-        }
-
-        public override int GetHashCode()
-        {
-            var hashCode = new System.HashCode();
-            hashCode.Add(this.x.GetHashCode());
-            hashCode.Add(this.Y.GetHashCode());
-            return hashCode.ToHashCode();
-        }
-    }
-}";
-
-            Assert.Equal(expected, output);
-        }
-
-        [Fact]
-        public void ImplementIEquatable_SimpleStruct_ImplementIEquatable()
-        {
-            var input = @"
-namespace N
-{
-    [ImplementIEquatable]
-    public partial struct Script
-    {
-        int x;
-        public string Y { get; }
-    }
-}";
-            var output = SingleTextProcess(input);
-            var expected = @"#nullable enable
-
-namespace N
-{
-    public partial struct Script : System.IEquatable<Script>
-    {
-        public override bool Equals(object? obj) => obj is Script other && Equals(other);
-        public bool Equals(Script other)
-        {
-            return x.Equals(other.x) && Y.Equals(other.Y);
-        }
-
-        public override int GetHashCode()
-        {
-            var hashCode = new System.HashCode();
-            hashCode.Add(this.x.GetHashCode());
-            hashCode.Add(this.Y.GetHashCode());
-            return hashCode.ToHashCode();
-        }
-    }
-}";
-
-            Assert.Equal(expected, output);
-        }
-
-        [Fact]
-        public void ImplementIEquatable_HasNullableStructMember_ImplementIEquatable()
-        {
-            var input = @"
-namespace N
-{
-    [ImplementIEquatable]
-    public partial class Script
-    {
-        int? nx;
-    }
-}";
-            var output = SingleTextProcess(input);
-            var expected = @"#nullable enable
-
-namespace N
-{
-    public partial class Script : System.IEquatable<Script>
-    {
-        public override bool Equals(object? obj) => Equals(obj as Script);
-        
-        public bool Equals(Script? other)
-        {
-            if (other != null) return false;
-
-            if (nx != null && other.nx != null)
-            {
-                if (!nx.Value.Equals(other.nx.Value)) return false;
-            }
-            else if (nx != null || other.nx != null) return false;
-
-            return true;
-        }
-
-        public override int GetHashCode()
-        {
-            var hashCode = new System.HashCode();
-            hashCode.Add(this.nx == null ? 0 : this.nx.Value.GetHashCode());
-            return hashCode.ToHashCode();
-        }
-    }
-}";
-
-            Assert.Equal(expected, output);
-        }
-
-        [Fact]
-        public void ImplementIEquatable_HasNullableClass_ImplementIEquatable()
-        {
-            var input = @"
-namespace N
-{
-    [ImplementIEquatable]
-    public partial class Script
-    {
-        string? ns;
-    }
-}";
-            var output = SingleTextProcess(input);
-            var expected = @"#nullable enable
-
-namespace N
-{
-    public partial class Script : System.IEquatable<Script>
-    {
-        public override bool Equals(object? obj) => Equals(obj as Script);
-        public bool Equals(Script? other)
-        {
-            if (other != null)
-                return false;
-            if (ns != null)
-            {
-                if (!ns.Equals(other.ns))
-                    return false;
-            }
-            else if (other.ns != null)
-                return false;
-            return true;
-        }
-
-        public override int GetHashCode()
-        {
-            var hashCode = new System.HashCode();
-            hashCode.Add(this.ns == null ? 0 : this.ns.GetHashCode());
-            return hashCode.ToHashCode();
         }
     }
 }";

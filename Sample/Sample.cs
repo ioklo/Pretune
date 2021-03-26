@@ -1,6 +1,7 @@
 ﻿using Pretune;
 using System;
 using System.Collections.Generic;
+using System.Collections.Immutable;
 using System.Text;
 
 namespace CodeGenerator
@@ -28,5 +29,11 @@ namespace CodeGenerator
 
         [DependsOn(nameof(firstName), nameof(lastName))]
         public string FullName { get => $"{firstName} {lastName}"; }
+    }
+
+    [AutoConstructor, ImplementIEquatable]
+    public partial class NameList
+    {
+        public ImmutableArray<string> Names { get; }
     }
 }
