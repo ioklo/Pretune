@@ -18,12 +18,12 @@ namespace Pretune.Test
                 new IEquatableGenerator());
 
             var testFileProvider = new TestFileProvider();
-            testFileProvider.WriteAllText("Program.cs", input);
+            testFileProvider.WriteAllTextOrSkip("Program.cs", input);
 
             var refAssembly = typeof(object).Assembly.Location;
             var immutableAssembly = typeof(ImmutableArray<>).Assembly.Location;
 
-            var processor = new Processor(testFileProvider, "Generated", "obj/Debug/Pretune.outputs", 
+            var processor = new Processor(testFileProvider, "Generated",
                 ImmutableArray.Create("Program.cs"), 
                 ImmutableArray.Create(refAssembly, immutableAssembly), generators);
 

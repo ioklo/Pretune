@@ -5,10 +5,15 @@
     <TargetFramework>netcoreapp3.1</TargetFramework>
     <RestorePackagesPath>packages</RestorePackagesPath>
     <Nullable>enable</Nullable>
+    <DockerDefaultTargetOS>Windows</DockerDefaultTargetOS>
   </PropertyGroup>
   
   <ItemGroup>
-    <PackageReference Include="Pretune" Version="0.6.5" />
+    <Folder Include="packages\pretune\" />
+  </ItemGroup>
+  
+  <ItemGroup>
+    <PackageReference Include="Pretune" Version="0.8.1" />
   </ItemGroup>
   
 </Project>

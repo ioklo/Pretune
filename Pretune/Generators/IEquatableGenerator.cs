@@ -242,7 +242,7 @@ namespace Pretune.Generators
                             MemberAccessExpression(
                                 SyntaxKind.SimpleMemberAccessExpression,
                                 IdentifierName("other"),
-                                IdentifierName("nx")
+                                IdentifierName(memberName)
                             ),
                             LiteralExpression(SyntaxKind.NullLiteralExpression)
                         )

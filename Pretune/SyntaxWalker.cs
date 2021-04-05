@@ -91,23 +91,21 @@ namespace Pretune
         {
             var newFrame = ExecInNewFrame(() => base.VisitStructDeclaration(node));
 
-            if (!typeDeclGeneratorsInfo.TryGetValue(node, out var generators))
-                return;
-
-            var typeSymbol = model.GetDeclaredSymbol(node);
-
-            if (typeSymbol == null)
-                throw new PretuneGeneralException();
-
             var baseTypes = new List<BaseTypeSyntax>();
             var memberDecls = new List<MemberDeclarationSyntax>(newFrame.Members);
 
-            foreach (var generator in generators)
+            if (typeDeclGeneratorsInfo.TryGetValue(node, out var generators))
             {
-                var result = generator.Generate(typeSymbol);
+                var typeSymbol = model.GetDeclaredSymbol(node);
+                if (typeSymbol == null) throw new PretuneGeneralException();
 
-                baseTypes.AddRange(result.BaseTypes);
-                memberDecls.AddRange(result.MemberDecls);
+                foreach (var generator in generators)
+                {
+                    var result = generator.Generate(typeSymbol);
+
+                    baseTypes.AddRange(result.BaseTypes);
+                    memberDecls.AddRange(result.MemberDecls);
+                }
             }
 
             if (baseTypes.Count == 0 && memberDecls.Count == 0)
@@ -132,23 +130,21 @@ namespace Pretune
         {
             var newFrame = ExecInNewFrame(() => base.VisitClassDeclaration(node));
 
-            if (!typeDeclGeneratorsInfo.TryGetValue(node, out var generators))
-                return;
-
-            var typeSymbol = model.GetDeclaredSymbol(node);
-            
-            if (typeSymbol == null)
-                throw new PretuneGeneralException();
-
             var baseTypes = new List<BaseTypeSyntax>();
             var memberDecls = new List<MemberDeclarationSyntax>(newFrame.Members);
 
-            foreach (var generator in generators)
+            if (typeDeclGeneratorsInfo.TryGetValue(node, out var generators))
             {
-                var result = generator.Generate(typeSymbol);
+                var typeSymbol = model.GetDeclaredSymbol(node);
+                if (typeSymbol == null) throw new PretuneGeneralException();
 
-                baseTypes.AddRange(result.BaseTypes);
-                memberDecls.AddRange(result.MemberDecls);
+                foreach (var generator in generators)
+                {
+                    var result = generator.Generate(typeSymbol);
+
+                    baseTypes.AddRange(result.BaseTypes);
+                    memberDecls.AddRange(result.MemberDecls);
+                }
             }
 
             if (baseTypes.Count == 0 && memberDecls.Count == 0)

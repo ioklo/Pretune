@@ -1,43 +1,70 @@
 ﻿<Project ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
-
   <PropertyGroup>
     <PretuneAssemblyPath>$(MSBuildThisFileDirectory)..\tools\Pretune.dll</PretuneAssemblyPath>
     <PretuneGeneratedPath>PretuneGenerated</PretuneGeneratedPath>
+    <PretuneResponseFile>$(IntermediateOutputPath)Pretune.rsp</PretuneResponseFile>
+    <PretuneResponseFileTimestamp>$(IntermediateOutputPath)Pretune.rsp.timestamp</PretuneResponseFileTimestamp>
+    <PretuneVersionFile>$(IntermediateOutputPath)Pretune.version</PretuneVersionFile>
   </PropertyGroup>
 
-  <ItemGroup>
-    <PretuneItem Include="@(Compile)" Exclude="$(PretuneGeneratedPath)\**\*.cs"></PretuneItem>    
-  </ItemGroup>  
-  
-  <Target Name="PretuneClean" BeforeTargets="BeforeClean">
-    <Error Condition="'$(PretuneGeneratedPath)' == ''" Text="BE CAREFUL!, PretuneGeneratedPath SHOULD NOT be empty, especially on CLEANING" />
-    <RemoveDir Directories="$(PretuneGeneratedPath)" Condition="'$(PretuneGeneratedPath)' != ''"/>
+  <Target Name="PretuneRemoveGeneratedFilesFromCompileItems" BeforeTargets="BeforeClean;PretuneCompile">
+    <ItemGroup>
+      <Compile Remove="$(PretuneGeneratedPath)\**\*.cs" /> <!-- wildcard expands existing files only, so execute before cleaning -->
+    </ItemGroup>
   </Target>
 
-  <Target Name="PretuneCompile" BeforeTargets="BeforeCompile"          
-          Inputs="@(PretuneItem)"
-          Outputs="@(PretuneItem->'$(PretuneGeneratedPath)\$([System.IO.Path]::GetDirectoryName(`%(Identity)`))\%(Filename).g.cs')" Condition="'$(DesignTimeBuild)'!='true'">
-
-    <PropertyGroup>
-      <PretuneResponseFile>$(IntermediateOutputPath)\Pretune.rsp</PretuneResponseFile>
-      <PretuneOutputsFile>$(IntermediateOutputPath)Pretune.outputs</PretuneOutputsFile>
-    </PropertyGroup>
-
-    <MakeDir Directories="$(IntermediateOutputPath)" />
-    <WriteLinesToFile Overwrite="true" File="$(PretuneResponseFile)" Lines="$(PretuneGeneratedPath)" />
-    <WriteLinesToFile File="$(PretuneResponseFile)" Lines="$(PretuneOutputsFile)" />
-    <WriteLinesToFile File="$(PretuneResponseFile)" Lines="@(PretuneItem)" />
-    <WriteLinesToFile File="$(PretuneResponseFile)" Lines="-r" />
-    <WriteLinesToFile File="$(PretuneResponseFile)" Lines="@(ReferencePathWithRefAssemblies)" />
-    <Exec Command="dotnet &quot;$(PretuneAssemblyPath)&quot; @$(PretuneResponseFile)"/>
-    <ReadLinesFromFile File="$(PretuneOutputsFile)">
-      <Output TaskParameter="Lines" ItemName="PretuneGeneratedItem"/>
-    </ReadLinesFromFile>
+  <!-- delete entire directory -->
+  <Target Name="PretuneClean" BeforeTargets="BeforeClean">
 
     <ItemGroup>
-      <!-- NOTICE: if an generated items have different metadata, 'KeepDuplicates=False' doesn't work -->
-      <Compile Include="@(PretuneGeneratedItem)" KeepDuplicates="False"/>
+      <_PretuneGeneratedSourceFile Include="$(PretuneGeneratedPath)\**\*.g.cs"/>
+      <_PretuneGeneratedSourceFile Include="$(PretuneGeneratedPath)\Stub.cs"/>
+    </ItemGroup>
+
+    <Delete Files="@(_PretuneGeneratedSourceFile)" />
+    
+  </Target>
+
+  <Target Name="PretuneWriteResponseFile" DependsOnTargets="PretuneRemoveGeneratedFilesFromCompileItems">
+    <ItemGroup>
+      <PretuneResponseFileContents Include="$(PretuneGeneratedPath)" />
+      <PretuneResponseFileContents Include="@(Compile)" />
+      <PretuneResponseFileContents Include="-r" />
+      <PretuneResponseFileContents Include="@(ReferencePathWithRefAssemblies)" />
+    </ItemGroup>
+
+    <MakeDir Directories="$(IntermediateOutputPath)" />    
+    <WriteLinesToFile Overwrite="true" File="$(PretuneResponseFile)" Lines="@(PretuneResponseFileContents)" WriteOnlyWhenDifferent="True" />
+
+    <ItemGroup>
+      <FileWrites Include="$(PretuneResponseFile)" />
+    </ItemGroup>
+  </Target>
+  
+  <Target Name="PretuneWriteVersionFile">
+    <WriteLinesToFile Overwrite="true" File="$(PretuneVersionFile)" Lines="$(PretuneVersion)" WriteOnlyWhenDifferent="True" />  
+    <ItemGroup>
+      <FileWrites Include="$(PretuneVersionFile)" />
+    </ItemGroup>
+  </Target>
+
+  <Target Name="PretuneCompile" BeforeTargets="BeforeCompile" Condition="'$(DesignTimeBuild)'!='true'"
+          Inputs="@(Compile);$(PretuneResponseFile);$(PretuneVersionFile)" Outputs="$(PretuneResponseFileTimestamp)" DependsOnTargets="PretuneWriteResponseFile;PretuneWriteVersionFile">    
+    
+    <Exec Command="dotnet &quot;$(PretuneAssemblyPath)&quot; @$(PretuneResponseFile)"/>
+
+    <WriteLinesToFile Overwrite="true" File="$(PretuneResponseFileTimestamp)" />
+
+    <ItemGroup>
+      <FileWrites Include="$(PretuneResponseFileTimestamp)" />
     </ItemGroup>
     
+  </Target>
+
+  <Target Name="PretuneAddGeneratedFilesToCompileItem" AfterTargets="PretuneCompile" BeforeTargets="BeforeCompile">
+    <ItemGroup>
+      <!-- add generated files again -->
+      <Compile Include="$(PretuneGeneratedPath)\**\*.cs" />
+    </ItemGroup>
   </Target>
 </Project>

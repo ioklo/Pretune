@@ -16,19 +16,15 @@ namespace Pretune
     class Processor
     {
         string generatedDirectory;
-        string outputsFile;
         ImmutableArray<string> inputFiles;
         ImmutableArray<string> refAssemblyFiles;
         ImmutableArray<IGenerator> generators;
-
-        List<string> outputFiles;
         IFileProvider fileProvider;
         
 
         public Processor(
             IFileProvider fileProvider, 
             string generatedDirectory, 
-            string outputsFile, 
             ImmutableArray<string> inputFiles, 
             ImmutableArray<string> refAssemblyFiles,
             ImmutableArray<IGenerator> generators)
@@ -36,12 +32,9 @@ namespace Pretune
             this.fileProvider = fileProvider;
 
             this.generatedDirectory = generatedDirectory;
-            this.outputsFile = outputsFile;
             this.inputFiles = inputFiles;
             this.refAssemblyFiles = refAssemblyFiles;
             this.generators = generators;
-
-            this.outputFiles = new List<string>();
         }
 
         // 둘다 relative path
@@ -89,34 +82,44 @@ namespace Pretune
         }
     }
 }";
-            bool bSave = true;
-
-            if (fileProvider.FileExists(filePath))
-            {
-                var fileContents = fileProvider.ReadAllText(filePath);
-
-                // 덮어씌우는 것으로
-                // 내용이 똑같으면 덮어씌우지 않는다
-                if (fileContents == text)
-                    bSave = false;
-            }
-
-            if (bSave)
-                Save(filePath, text);
+            SaveOrSkip(filePath, text);
 
             return ParseSyntaxTree(text);
+        }
+
+        public void ClearOrphanSources()
+        {
+            foreach(var generatedFile in fileProvider.GetAllFiles(generatedDirectory, ".g.cs"))
+            {
+                var outputFile = Path.Combine(generatedDirectory, generatedFile);
+                var inputFile = MakeInputFilePath(outputFile);
+
+                if (inputFile == null) continue; // 뭔가 문제가 있으면 하지 않는다
+
+                if (!fileProvider.FileExists(inputFile))
+                {
+                    Console.Error.WriteLine($"{Path.GetFullPath(outputFile)}(1, 1): warning PR0004: removed, input file doesn't exist({inputFile})");
+                    fileProvider.RemoveFile(outputFile);
+                }
+            }
         }
 
         public void Process()
         {
             // 일단 이 모드에서는 input files만 받는다, output directory는 generated
+
+            // 0. 파일이 없으면 제거한다
+            ClearOrphanSources();
+
             // 1. input은 작업디렉토리에 영향을 받아야 하고, relative만 받는다.. Program.cs A\Sample.cs, FullyQualified면 에러
-            var stubTree = GenerateStub();
+            var stubTree = GenerateStub();            
 
             var infos = new List<(string OutputFile, SyntaxTree Tree)>();
             foreach (var inputFile in inputFiles)
             {
-                VerifyInputFilePath(inputFile);
+                if (!VerifyInputFilePath(inputFile))
+                    continue;
+
                 string outputFile = MakeOutputFilePath(inputFile);
 
                 var text = fileProvider.ReadAllText(inputFile);
@@ -165,36 +168,56 @@ namespace Pretune
                 if (walker.NeedSave)
                 {
                     Debug.Assert(walker.CompilationUnitSyntax != null);
-                    Save(info.OutputFile, @$"#nullable enable
+                    SaveOrSkip(info.OutputFile, @$"#nullable enable
 
 {walker.CompilationUnitSyntax}");
                 }
             }
-
-            fileProvider.WriteAllText(outputsFile, string.Join(Environment.NewLine, outputFiles));
         }
 
-        void Save(string outputFile, string contents)
+        void SaveOrSkip(string outputFile, string contents)
         {
             var directory = Path.GetDirectoryName(outputFile);
             if (directory != null)
                 fileProvider.CreateDirectory(directory);
 
-            fileProvider.WriteAllText(outputFile, contents);
-
-            // collect outputFiles
-            outputFiles.Add(outputFile);
+            fileProvider.WriteAllTextOrSkip(outputFile, contents);
         }
 
-        void VerifyInputFilePath(string inputFile)
+        bool VerifyInputFilePath(string inputFile)
         {
             if (Path.IsPathFullyQualified(inputFile))
-                throw new PretuneGeneralException($"input file path need to be relative: '{inputFile}'");
+            {
+                Console.Error.WriteLine($"{Path.GetFullPath(inputFile)}(1, 1): warning PR0001: skip, pretune ignore linked source file");
+                return false;
+            }
+
             else if (inputFile.Contains(".."))
-                throw new PretuneGeneralException($"input file path should not contain '..': '{inputFile}'");
+            {
+                Console.Error.WriteLine($"{Path.GetFullPath(inputFile)}(1, 1): warning PR0002: skip, pretune ignore linked source file");
+                return false;
+            }
 
             if (IsFileInOutputDirectory(inputFile, generatedDirectory))
-                throw new PretuneGeneralException($"input file is descendent of output directory: '{inputFile}'");
+            {
+                Console.Error.WriteLine($"{Path.GetFullPath(inputFile)}(1, 1): warning PR0003: skip, input file is descendent of output directory");
+                return false;
+            }
+
+            return true;
+        }
+        
+        string? MakeInputFilePath(string outputFile)
+        {
+            var relativePath = Path.GetRelativePath(generatedDirectory, outputFile);
+            if (outputFile == relativePath) 
+                return null;
+
+            // .g.cs없애기
+            if (!relativePath.EndsWith("g.cs"))
+                return null;
+
+            return relativePath.Remove(relativePath.Length - 4, 2);
         }
 
         string MakeOutputFilePath(string inputFile)

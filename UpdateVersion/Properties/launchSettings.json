@@ -1,0 +1,8 @@
+{
+  "profiles": {
+    "UpdateVersion": {
+      "commandName": "Project",
+      "commandLineArgs": "$(ProjectDir)..\\Pretune"
+    }
+  }
+}

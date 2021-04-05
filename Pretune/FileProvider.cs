@@ -1,8 +1,10 @@
 ﻿using Pretune.Abstractions;
 using System;
+using System.Collections.Generic;
 using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
 using System.IO;
+using System.Linq;
 
 namespace Pretune
 {
@@ -31,11 +33,22 @@ namespace Pretune
             }
         }
 
-        public void WriteAllText(string path, string contents)
+        public void WriteAllTextOrSkip(string path, string contents)
         {
             try
             {
-                File.WriteAllText(path, contents);
+                // 파일이 있고, 내용이 똑같으면, 덮어쓰지 않고 건너뛴다
+                if (File.Exists(path))
+                {
+                    var prevText = ReadAllText(path);
+                    if (prevText == contents)
+                    {
+                        // Console.Error.WriteLine($"{path}: Pretune: skip, doesn't changed");
+                        return;
+                    }
+                }
+
+                File.WriteAllText(path, contents);                
             }
             catch(FileNotFoundException e)
             {
@@ -51,6 +64,21 @@ namespace Pretune
         public bool FileExists(string path)
         {
             return File.Exists(path);
+        }
+
+        public void RemoveFile(string path)
+        {
+            File.Delete(path);
+        }
+
+        public List<string> GetAllFiles(string path, string extension)
+        {
+            if (!Directory.Exists(path)) return new List<string>();
+
+            var result = new List<string>();
+            foreach (var file in Directory.GetFiles(path, "*" + extension, SearchOption.AllDirectories))
+                result.Add(Path.GetRelativePath(path, file));
+            return result;
         }
     }
 }

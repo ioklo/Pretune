@@ -1,5 +1,7 @@
 ﻿using Pretune.Abstractions;
+using System;
 using System.Collections.Generic;
+using System.IO;
 
 namespace Pretune.Test
 {
@@ -25,6 +27,18 @@ namespace Pretune.Test
             return fileContents.ContainsKey(path);
         }
 
+        public List<string> GetAllFiles(string directory, string extension)
+        {
+            var result = new List<string>();
+            foreach(var path in fileContents.Keys)
+            {
+                if (path.StartsWith(directory) && path.EndsWith(extension))
+                    result.Add(Path.GetRelativePath(directory, path));
+            }
+
+            return result;
+        }
+
         public string ReadAllText(string path)
         {
             if (fileContents.TryGetValue(path, out var contents))
@@ -33,7 +47,12 @@ namespace Pretune.Test
             throw new PretuneGeneralException();
         }
 
-        public void WriteAllText(string path, string contents)
+        public void RemoveFile(string generatedFile)
+        {
+            throw new NotImplementedException();
+        }
+
+        public void WriteAllTextOrSkip(string path, string contents)
         {
             fileContents[path] = contents;
         }

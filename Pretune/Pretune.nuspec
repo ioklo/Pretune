@@ -1,8 +1,8 @@
-﻿<?xml version="1.0" encoding="utf-8"?>
+<?xml version="1.0" encoding="utf-8"?>
 <package xmlns="http://schemas.microsoft.com/packaging/2012/06/nuspec.xsd">
   <metadata>
     <id>Pretune</id>
-    <version>0.7.0</version>
+    <version>0.8.1</version>
     <authors>IOKLO</authors>
     <description>Syntax-based C# preprocessor generating boilerplate code before compile.</description>
     <license type="expression">Apache-2.0</license>

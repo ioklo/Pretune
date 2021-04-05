@@ -18,7 +18,6 @@ namespace Pretune.Test
             var args = new[]
             {
                 "Generated",
-                "obj/Debug/Pretune.outputs",
                 "Program.cs",
                 "Sample/A.cs",
                 "-r",
@@ -32,37 +31,10 @@ namespace Pretune.Test
 
             var switchInfo = successResult.SwitchInfo;
             Assert.Equal("Generated", switchInfo.GeneratedDirectory);
-            Assert.Equal("obj/Debug/Pretune.outputs", switchInfo.OutputsFile);
             Assert.Equal("Program.cs", switchInfo.InputFiles[0]);
             Assert.Equal("Sample/A.cs", switchInfo.InputFiles[1]);
             Assert.Equal("MyAssembly1.dll", switchInfo.ReferenceAssemblyFiles[0]);
             Assert.Equal("MyAssembly2.dll", switchInfo.ReferenceAssemblyFiles[1]);
-        }
-
-        [Fact]
-        public void Processor_InputCauseGeneratingFiles_GenerateOutputsFile()
-        {
-            var testFileProvider = new TestFileProvider();
-            testFileProvider.WriteAllText("Program.cs", @"
-[AutoConstructor]
-public partial class Sample<T>
-{
-    public int X { get; set; }
-    public int Y { get => 1; } // no generation
-    T Param;
-}");
-            var identifierConverter = new CamelCaseIdentifierConverter();
-            var generators = ImmutableArray.Create<IGenerator>(
-                new ConstructorGenerator(identifierConverter),
-                new INotifyPropertyChangedGenerator(identifierConverter));
-
-            var refAssembly = typeof(object).Assembly.Location;
-
-            var processor = new Processor(testFileProvider, "Generated", "obj/Debug/Pretune.outputs", ImmutableArray.Create("Program.cs"), ImmutableArray.Create(refAssembly), generators);
-            processor.Process();
-
-            var text = testFileProvider.ReadAllText("obj/Debug/Pretune.outputs");
-            Assert.Equal(string.Join(Environment.NewLine, new[] { "Generated\\Stub.cs", "Generated\\Program.g.cs" }), text);
         }
 
         [Fact]
