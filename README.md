@@ -100,6 +100,8 @@ partial class ViewModel
 make this code
 ```csharp 
 // Script.cs
+using Pretune;
+
 namespace N
 {
     [ImplementIEquatable]
@@ -117,21 +119,29 @@ and build then you will get following code
 // PretuneGenerated/Script.g.cs
 #nullable enable
 
+using Pretune;
+
 namespace N
 {
-    public partial class Script : System.IEquatable<Script?>
+    public partial class Script : System.IEquatable<Script>
     {
         public override bool Equals(object? obj) => Equals(obj as Script);
         public bool Equals(Script? other)
         {
-            return other != null && System.Collections.Generic.EqualityComparer<int>.Default.Equals(x, other.x) && System.Collections.Generic.EqualityComparer<string>.Default.Equals(Y, other.Y);
+            if (other == null)
+                return false;
+            if (!x.Equals(other.x))
+                return false;
+            if (!Y.Equals(other.Y))
+                return false;
+            return true;
         }
 
         public override int GetHashCode()
         {
             var hashCode = new System.HashCode();
-            hashCode.Add(x);
-            hashCode.Add(Y);
+            hashCode.Add(this.x.GetHashCode());
+            hashCode.Add(this.Y.GetHashCode());
             return hashCode.ToHashCode();
         }
     }
@@ -145,7 +155,7 @@ Add 'Pretune' package from nuget
 
 ### CLI
 ```
-dotnet add package Pretune --version 0.6.0
+dotnet add package Pretune
 ```
 
 ## Requirements
