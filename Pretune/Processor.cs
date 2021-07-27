@@ -62,6 +62,8 @@ namespace Pretune
         public DependsOnAttribute(params string[] names) { }
     }
 
+    class ExcludeComparison : Attribute { }
+
     class CustomEqualityComparerAttribute : Attribute 
     {
         public CustomEqualityComparerAttribute(params Type[] types) { }
@@ -106,9 +108,9 @@ namespace Pretune
 
         public void Process()
         {
-            // 일단 이 모드에서는 input files만 받는다, output directory는 generated
+            // 일단 이 모드에서는 input files만 받는다, output directory는 generated            
 
-            // 0. 파일이 없으면 제거한다
+            // 0. g.cs는 있는데 input이 없는 경우 삭제
             ClearOrphanSources();
 
             // 1. input은 작업디렉토리에 영향을 받아야 하고, relative만 받는다.. Program.cs A\Sample.cs, FullyQualified면 에러
@@ -172,7 +174,16 @@ namespace Pretune
 
 {walker.CompilationUnitSyntax}");
                 }
-            }
+                else
+                {
+                    // 삭제
+                    if (fileProvider.FileExists(info.OutputFile))
+                    {
+                        Console.Error.WriteLine($"{Path.GetFullPath(info.OutputFile)}(1, 1): warning PR0005: removed, output file doesn't need anymore.({info.OutputFile})");
+                        fileProvider.RemoveFile(info.OutputFile);
+                    }
+                }
+            }            
         }
 
         void SaveOrSkip(string outputFile, string contents)

@@ -242,5 +242,97 @@ namespace N
 }";
             Assert.Equal(expected, output);
         }
+
+        [Fact]
+        public void ImplementIEquatable_SetExcludeComparsionAttributeToMember_ExcludeTheMemberForComparison()
+        {
+            var input = @"
+namespace N
+{
+    [ImplementIEquatable]
+    public partial class Script
+    {
+        int x;
+        [ExcludeComparison]
+        public string Y { get; }
+    }
+}";
+            var output = SingleTextProcess(input);
+            var expected = @"#nullable enable
+
+namespace N
+{
+    public partial class Script : System.IEquatable<Script>
+    {
+        public override bool Equals(object? obj) => Equals(obj as Script);
+        public bool Equals(Script? other)
+        {
+            if (other == null)
+                return false;
+            if (!x.Equals(other.x))
+                return false;
+            return true;
+        }
+
+        public override int GetHashCode()
+        {
+            var hashCode = new System.HashCode();
+            hashCode.Add(this.x.GetHashCode());
+            return hashCode.ToHashCode();
+        }
+    }
+}";
+
+            Assert.Equal(expected, output);
+        }
+
+        [Fact]
+        public void ImplementIEquatable_SetExcludeComparsionAttributeToType_ExcludeAllMembersThatTypeForComparison()
+        {
+            var input = @"
+namespace N
+{
+    [ImplementIEquatable]
+    public partial class Script
+    {
+        int x;
+        S<int> Y { get; }
+        S2 z;
+    }
+
+    [ExcludeComparison]
+    public struct S<T> {}
+
+    [ExcludeComparison]
+    public struct S2 {}
+}";
+            var output = SingleTextProcess(input);
+            var expected = @"#nullable enable
+
+namespace N
+{
+    public partial class Script : System.IEquatable<Script>
+    {
+        public override bool Equals(object? obj) => Equals(obj as Script);
+        public bool Equals(Script? other)
+        {
+            if (other == null)
+                return false;
+            if (!x.Equals(other.x))
+                return false;
+            return true;
+        }
+
+        public override int GetHashCode()
+        {
+            var hashCode = new System.HashCode();
+            hashCode.Add(this.x.GetHashCode());
+            return hashCode.ToHashCode();
+        }
+    }
+}";
+
+            Assert.Equal(expected, output);
+        }
     }
 }

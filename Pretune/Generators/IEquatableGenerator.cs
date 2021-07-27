@@ -19,10 +19,15 @@ namespace Pretune.Generators
         Dictionary<INamedTypeSymbol, INamedTypeSymbol> unboundTypeCustomEqComparers;
         Dictionary<INamedTypeSymbol, INamedTypeSymbol> boundTypeCustomEqComparers;
 
+        // excluded type, generic이라면 unbound상태로 들고 있고, 아니라면 그대로 들고 있을 것이다
+        HashSet<INamedTypeSymbol> excludedTypes;
+
         public IEquatableGenerator()
         {
             unboundTypeCustomEqComparers = new Dictionary<INamedTypeSymbol, INamedTypeSymbol>(SymbolEqualityComparer.Default);
             boundTypeCustomEqComparers = new Dictionary<INamedTypeSymbol, INamedTypeSymbol>(SymbolEqualityComparer.Default);
+
+            excludedTypes = new HashSet<INamedTypeSymbol>(SymbolEqualityComparer.Default);
         }
 
         // GetCustomEqComparer(ImmutableArray<int>)
@@ -60,25 +65,43 @@ namespace Pretune.Generators
 
             foreach(var attr in typeSymbol.GetAttributes())
             {
-                if (attr.AttributeClass == null || !Misc.IsPretuneAttribute(attr.AttributeClass, "CustomEqualityComparer"))
-                    continue;
+                if (attr.AttributeClass == null) continue;
 
-                foreach (var arg in attr.ConstructorArguments)
+                if (Misc.IsPretuneAttribute(attr.AttributeClass, "ExcludeComparison"))
                 {
-                    // TODO: 아니라면 워닝
-                    if (arg.Kind == TypedConstantKind.Array)
+                    if (typeSymbol is INamedTypeSymbol namedTypeSymbol)
                     {
-                        foreach (var value in arg.Values)
+                        if (namedTypeSymbol.IsGenericType)
                         {
-                            if (value.Kind != TypedConstantKind.Type) continue;
+                            if (namedTypeSymbol.IsUnboundGenericType)
+                                excludedTypes.Add(namedTypeSymbol);
+                            else
+                                excludedTypes.Add(namedTypeSymbol.ConstructUnboundGenericType());
+                        }
+                        else
+                            excludedTypes.Add(namedTypeSymbol);
+                    }
+                }
 
-                            if (value.Value is INamedTypeSymbol namedArg)
+                if (Misc.IsPretuneAttribute(attr.AttributeClass, "CustomEqualityComparer"))
+                {
+                    foreach (var arg in attr.ConstructorArguments)
+                    {
+                        // TODO: 아니라면 워닝
+                        if (arg.Kind == TypedConstantKind.Array)
+                        {
+                            foreach (var value in arg.Values)
                             {
-                                // ImmutableArray<> ..
-                                if (namedArg.IsUnboundGenericType)
-                                    unboundTypeCustomEqComparers.Add(namedArg, typeSymbol);
-                                else
-                                    boundTypeCustomEqComparers.Add(namedArg, typeSymbol);
+                                if (value.Kind != TypedConstantKind.Type) continue;
+
+                                if (value.Value is INamedTypeSymbol namedArg)
+                                {
+                                    // ImmutableArray<> ..
+                                    if (namedArg.IsUnboundGenericType)
+                                        unboundTypeCustomEqComparers.Add(namedArg, typeSymbol);
+                                    else
+                                        boundTypeCustomEqComparers.Add(namedArg, typeSymbol);
+                                }
                             }
                         }
                     }
@@ -273,6 +296,9 @@ namespace Pretune.Generators
             // 2. foreach(field in symbol)
             foreach (var member in Misc.EnumerateInstanceMembers(typeSymbol))
             {
+                if (IsExcluded(member))
+                    continue;
+
                 var stmt = GenerateTestMemberStmt(member);
                 stmts.Add(stmt);
             }
@@ -309,6 +335,44 @@ namespace Pretune.Generators
                 return GenerateTestStmtNullableMember(member);
         }
 
+        bool IsExcluded(MemberSymbol memberSymbol)
+        {
+            // 1. member 자체에 attribute가 있는 경우            
+            foreach (var attr in memberSymbol.GetAttributes())
+            {
+                if (attr.AttributeClass != null && Misc.IsPretuneAttribute(attr.AttributeClass, "ExcludeComparison"))
+                    return true;
+            }
+
+            // 2. member의 타입에 attribute가 있는 경우
+            var memberType = memberSymbol.GetTypeSymbol();
+            if (memberType is INamedTypeSymbol namedMemberType)
+            {
+                if (namedMemberType.IsGenericType)
+                {
+                    if (!namedMemberType.IsUnboundGenericType)
+                    {
+                        var unboundGenericType = namedMemberType.ConstructUnboundGenericType();
+
+                        if (excludedTypes.Contains(unboundGenericType))
+                            return true;
+                    }
+                    else
+                    {
+                        if (excludedTypes.Contains(namedMemberType))
+                            return true;
+                    }
+                }
+                else
+                {
+                    if (excludedTypes.Contains(namedMemberType))
+                        return true;
+                }
+            }
+
+            return false;
+        }
+
         MemberDeclarationSyntax GenerateStructEquals(ITypeSymbol typeSymbol, string typeName)
         {
             // statement로 
@@ -317,6 +381,8 @@ namespace Pretune.Generators
             // 1. foreach(field in symbol)
             foreach (var member in Misc.EnumerateInstanceMembers(typeSymbol))
             {
+                if (IsExcluded(member)) continue;
+
                 var stmt = GenerateTestMemberStmt(member);
                 stmts.Add(stmt);
             }
@@ -494,6 +560,9 @@ namespace Pretune.Generators
             // 2. foreach fields hashcode.Add(...); 
             foreach (var member in Misc.EnumerateInstanceMembers(typeSymbol))
             {
+                if (IsExcluded(member))
+                    continue;
+
                 StatementSyntax stmt;
                 if (!member.IsNullableType())
                     stmt = GenerateHashCodeAddNonNullableMember(member);

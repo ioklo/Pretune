@@ -1,10 +1,10 @@
 using Pretune;
 
-namespace Sample.A
-{
-    [ImplementIEquatable]
-    partial class Sample3
+namespace N
+{   
+    public partial class Script
     {
-
+        int x;
+        public string Y { get; }
     }
 }

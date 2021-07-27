@@ -10,10 +10,11 @@
   
   <ItemGroup>
     <Folder Include="packages\pretune\" />
+    <Folder Include="PretuneGenerated\B\" />
   </ItemGroup>
   
   <ItemGroup>
-    <PackageReference Include="Pretune" Version="0.8.1" />
+    <PackageReference Include="Pretune" Version="0.8.2" />
   </ItemGroup>
   
 </Project>

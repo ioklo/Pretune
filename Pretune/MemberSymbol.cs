@@ -2,6 +2,7 @@
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 using System;
 using System.Collections.Generic;
+using System.Collections.Immutable;
 using System.Diagnostics.CodeAnalysis;
 using System.Linq;
 
@@ -29,6 +30,7 @@ namespace Pretune
     abstract class MemberSymbol : IEquatable<MemberSymbol>
     {
         public abstract ITypeSymbol GetTypeSymbol();
+        public abstract ImmutableArray<AttributeData> GetAttributes();
         public bool IsNullableType()
         {
             var typeSymbol = GetTypeSymbol();
@@ -93,11 +95,16 @@ namespace Pretune
 
         public FieldMemberSymbol(IFieldSymbol fieldSymbol) { this.fieldSymbol = fieldSymbol; }
 
-        protected override ISymbol GetSymbol() => fieldSymbol;
+        protected override ISymbol GetSymbol() => fieldSymbol;        
 
         public override ITypeSymbol GetTypeSymbol()
         {
             return fieldSymbol.Type;
+        }
+
+        public override ImmutableArray<AttributeData> GetAttributes()
+        {
+            return fieldSymbol.GetAttributes();
         }
     }
 
@@ -108,6 +115,10 @@ namespace Pretune
 
         public override ITypeSymbol GetTypeSymbol() => propSymbol.Type;
         protected override ISymbol GetSymbol() => propSymbol;
+        public override ImmutableArray<AttributeData> GetAttributes()
+        {
+            return propSymbol.GetAttributes();
+        }
     }
 
 }
