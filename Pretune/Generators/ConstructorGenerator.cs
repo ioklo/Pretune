@@ -25,7 +25,7 @@ namespace Pretune.Generators
                 return false;
 
             return Misc.HasPretuneAttribute(typeDecl, model, "AutoConstructor");
-        }
+        }        
 
         public GeneratorResult Generate(ITypeSymbol typeSymbol)
         {
@@ -36,7 +36,9 @@ namespace Pretune.Generators
             foreach (var member in Misc.EnumerateInstanceMembers(typeSymbol))
             {
                 var memberName = member.GetName();
+
                 var paramName = identifierConverter.ConvertMemberToParam(memberName);
+                memberName = memberName.AddAtSignIfKeyword();
 
                 if (parameters.Count != 0)
                     parameters.Add(Token(SyntaxKind.CommaToken));
@@ -51,7 +53,7 @@ namespace Pretune.Generators
                         SyntaxKind.SimpleAssignmentExpression,
                         MemberAccessExpression(
                             SyntaxKind.SimpleMemberAccessExpression,
-                            ThisExpression(),
+                            ThisExpression(),                            
                             IdentifierName(memberName)
                         ),
                         IdentifierName(paramName)

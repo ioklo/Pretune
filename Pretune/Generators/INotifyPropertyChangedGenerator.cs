@@ -126,7 +126,10 @@ public {typeName} {propertyName}
             foreach (var field in fields)
             {
                 string memberName = field.GetName();
+
                 string propertyName = identifierConverter.ConvertMemberToProperty(memberName);
+                memberName = memberName.AddAtSignIfKeyword();
+
                 string typeName = field.GetFieldTypeSyntax().ToString();
 
                 ICollection<StatementSyntax> extraInvocations;

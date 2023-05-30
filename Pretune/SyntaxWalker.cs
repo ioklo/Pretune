@@ -85,7 +85,18 @@ namespace Pretune
                 var namespaceDecl = NamespaceDeclaration(node.Name, node.Externs, node.Usings, newFrame.Members);
                 frame.AddMember(namespaceDecl);
             }
-        }        
+        }
+
+        public override void VisitFileScopedNamespaceDeclaration(FileScopedNamespaceDeclarationSyntax node)
+        {
+            var newFrame = ExecInNewFrame(() => base.VisitFileScopedNamespaceDeclaration(node));
+
+            if (newFrame.Members.Count != 0)
+            {
+                var namespaceDecl = FileScopedNamespaceDeclaration(node.AttributeLists, node.Modifiers, node.Name, node.Externs, node.Usings, newFrame.Members);
+                frame.AddMember(namespaceDecl);
+            }
+        }
 
         public override void VisitStructDeclaration(StructDeclarationSyntax node)
         {

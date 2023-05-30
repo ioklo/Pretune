@@ -35,7 +35,7 @@ namespace Pretune.Test
             Assert.Equal("Sample/A.cs", switchInfo.InputFiles[1]);
             Assert.Equal("MyAssembly1.dll", switchInfo.ReferenceAssemblyFiles[0]);
             Assert.Equal("MyAssembly2.dll", switchInfo.ReferenceAssemblyFiles[1]);
-        }
+        }        
 
         [Fact]
         public void Processor_NestedClass_PlaceNestedClassRight()
@@ -80,6 +80,41 @@ namespace N
 
             Assert.Equal(expected, output);
 
+        }
+
+        [Fact]
+        public void FileScopedNamespace_SimpleInput_WorksProperly()
+        {
+            var input = @"
+namespace N.N2;
+
+extern alias A;
+using B;
+
+[AutoConstructor]
+public partial class Sample
+{
+    public int X;
+}
+";
+            var output = SingleTextProcess(input);
+
+            var expected = @"#nullable enable
+
+namespace N.N2;
+extern alias A;
+
+using B;
+
+public partial class Sample
+{
+    public Sample(int x)
+    {
+        this.X = x;
+    }
+}";
+
+            Assert.Equal(expected, output);
         }
 
         [Fact]
@@ -139,6 +174,30 @@ namespace N
         public Sample()
         {
         }
+    }
+}";
+
+            Assert.Equal(expected, output);
+        }
+
+        [Fact]
+        public void AutoConstructor_UsingKeywordAsMemberName_PutAtSignBothMemberAndParameter()
+        {
+            var input = @"
+[AutoConstructor]
+public partial class C
+{
+    public int @namespace;
+}";
+            var output = SingleTextProcess(input);
+
+            var expected = @"#nullable enable
+
+public partial class C
+{
+    public C(int @namespace)
+    {
+        this.@namespace = @namespace;
     }
 }";
 

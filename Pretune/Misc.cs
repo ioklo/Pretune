@@ -1,4 +1,5 @@
 ﻿using Microsoft.CodeAnalysis;
+using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 using System;
 using System.Collections.Generic;
@@ -10,7 +11,17 @@ namespace Pretune
 {
     static class Misc
     {
-        
+        public static string AddAtSignIfKeyword(this string text)
+        {
+            if (text.StartsWith("@")) return text;
+
+            var token = ParseToken(text);
+            if (token.IsKeyword())
+                return "@" + text;
+
+            return text;
+        }
+
         public static bool HasPretuneAttribute(TypeDeclarationSyntax typeDecl, SemanticModel model, string name)
         {
             foreach (var attrList in typeDecl.AttributeLists)

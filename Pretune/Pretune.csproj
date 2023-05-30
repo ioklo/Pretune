@@ -2,7 +2,7 @@
 
   <PropertyGroup>
     <OutputType>Exe</OutputType>
-    <TargetFramework>netcoreapp3.1</TargetFramework>
+    <TargetFramework>net7.0</TargetFramework>
     
     <NuspecFile>Pretune.nuspec</NuspecFile>
     <!--<GeneratePackageOnBuild>true</GeneratePackageOnBuild>-->
@@ -27,7 +27,7 @@
   </Target>
 
   <ItemGroup>
-    <PackageReference Include="Microsoft.CodeAnalysis.CSharp" Version="3.8.0" />
+    <PackageReference Include="Microsoft.CodeAnalysis.CSharp" Version="4.5.0" />
   </ItemGroup>
 
   <ItemGroup>

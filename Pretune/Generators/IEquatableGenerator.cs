@@ -118,7 +118,7 @@ namespace Pretune.Generators
 
             // if (!global::MyNamespace.CustomEqualityComparer.Equals(member, other.member)) return false;
 
-            var fieldName = memberSymbol.GetName();
+            var fieldName = memberSymbol.GetName().AddAtSignIfKeyword();
             var typeExp = ParseExpression($"global::{comparerTypeSymbol.ToDisplayString()}");
 
             return IfStatement(
@@ -153,7 +153,7 @@ namespace Pretune.Generators
             if (statement != null) return statement;
 
             // if (!member.Equals(other.member)) return false;
-            var fieldName = memberSymbol.GetName();
+            var fieldName = memberSymbol.GetName().AddAtSignIfKeyword();
 
             return IfStatement(
                 PrefixUnaryExpression(
@@ -174,7 +174,7 @@ namespace Pretune.Generators
 
         StatementSyntax GenerateTestStmtNullableReferenceTypeMember(MemberSymbol memberSymbol)
         {
-            var fieldName = memberSymbol.GetName();
+            var fieldName = memberSymbol.GetName().AddAtSignIfKeyword();
             var nonnullableStmt = GenerateTestStmtNonNullableMember(memberSymbol);
 
             return IfStatement(
@@ -202,7 +202,7 @@ namespace Pretune.Generators
 
         StatementSyntax GenerateTestStmtNullableValueTypeMember(MemberSymbol memberSymbol)
         {
-            var memberName = memberSymbol.GetName();
+            var memberName = memberSymbol.GetName().AddAtSignIfKeyword();
 
             return IfStatement(
                 BinaryExpression(
@@ -413,7 +413,7 @@ namespace Pretune.Generators
 
         ExpressionSyntax GenerateGetHashCodeCustom(ITypeSymbol comparerTypeSymbol, MemberSymbol memberSymbol)
         {
-            var memberName = memberSymbol.GetName();
+            var memberName = memberSymbol.GetName().AddAtSignIfKeyword();
             var typeExp = ParseExpression($"global::{comparerTypeSymbol.ToDisplayString()}");
 
             return InvocationExpression(MemberAccessExpression(
@@ -452,7 +452,7 @@ namespace Pretune.Generators
             if (comparerTypeSymbol != null)
                 return GenerateGetHashCodeCustom(comparerTypeSymbol, memberSymbol);
 
-            var memberName = memberSymbol.GetName();
+            var memberName = memberSymbol.GetName().AddAtSignIfKeyword();
 
             return InvocationExpression(MemberAccessExpression(
                 SyntaxKind.SimpleMemberAccessExpression,
@@ -467,7 +467,7 @@ namespace Pretune.Generators
 
         StatementSyntax GenerateHashCodeAddNullableReferenceTypeMember(MemberSymbol memberSymbol)
         {
-            var memberName = memberSymbol.GetName();
+            var memberName = memberSymbol.GetName().AddAtSignIfKeyword();
             // hashCode.Add(this.x == null ? 0 : this.x.GetHashCode());
 
             var exp = GenerateGetHashCode(memberSymbol);
@@ -499,7 +499,7 @@ namespace Pretune.Generators
 
         StatementSyntax GenerateHashCodeAddNullableValueTypeMember(MemberSymbol memberSymbol)
         {
-            var memberName = memberSymbol.GetName();
+            var memberName = memberSymbol.GetName().AddAtSignIfKeyword();
             // hashCode.Add(this.x == null ? 0 : this.x.Value.GetHashCode());
 
             return ExpressionStatement(
